@@ -95,6 +95,18 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); fon
 .chip.box span::before { content: ""; display: inline-block; width: 10px; height: 10px; border: 1.5px solid var(--muted); border-radius: 3px; margin-right: 8px; vertical-align: 0; }
 .chip.box input:checked + span::before { background: var(--accent); border-color: var(--accent); }
 
+/* Saved channels / people: tap to reuse, x to forget */
+.rchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.rchip { display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); overflow: hidden; transition: border-color .12s, background-color .12s; }
+.rchip:hover { border-color: var(--accent); }
+.rchip.on { background: var(--accent-soft); border-color: var(--accent); }
+.rchip button { font: inherit; border: 0; background: transparent; color: var(--fg); cursor: pointer; }
+.rchip button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rchip .pick { font-family: var(--font-mono); font-size: 13px; padding: 3px 4px 3px 11px; }
+.rchip.on .pick { font-weight: 500; }
+.rchip .del { font-size: 14px; line-height: 1; padding: 0 9px 0 5px; color: var(--muted); }
+.rchip .del:hover { color: var(--err-fg); }
+
 .field { display: grid; gap: 6px; min-width: 0; }
 .field > .lbl { font-size: 13px; color: var(--muted); }
 .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
@@ -226,13 +238,13 @@ td code { color: var(--accent); white-space: nowrap; }
             </div>
             <label class="field" data-when="target=channel">
               <span class="lbl">채널 이름</span>
-              <span class="prefixed" data-prefix="#"><input type="text" id="r-channel" list="recent-channels" name="channel" placeholder="kr-dev-lead" spellcheck="false"></span>
+              <span class="prefixed" data-prefix="#"><input type="text" id="r-channel" data-recent="channel" name="channel" placeholder="kr-dev-lead" spellcheck="false"></span><div class="rchips" data-for="r-channel" hidden></div>
             </label>
             <label class="field" data-when="target=people">
               <span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span>
-              <span class="prefixed" data-prefix="@"><input type="text" id="r-people" list="recent-people" name="people" placeholder="minsu, jiyoung" spellcheck="false"></span>
+              <span class="prefixed" data-prefix="@"><input type="text" id="r-people" data-recent="people" name="people" placeholder="minsu, jiyoung" spellcheck="false"></span><div class="rchips" data-for="r-people" hidden></div>
             </label>
-            <p class="hint">고른 받는 곳(나·채널·특정 사람)과 입력한 채널·이름은 이 브라우저에 저장돼요. 다음에 열 때도 그대로고, 채널과 이름은 <code>/msg</code>·<code>/search</code>·<code>/invite</code>·<code>/remove</code>에도 채워져요.</p>
+            <p class="hint">고른 받는 곳(나·채널·특정 사람)과 입력한 채널·이름은 이 브라우저에 저장돼요. 한 번 입력한 채널과 이름은 칩으로 남아서 눌러서 다시 쓸 수 있고, <code>/msg</code>·<code>/search</code>·<code>/invite</code>·<code>/remove</code>에도 채워져요.</p>
           </section>
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">2</span>무엇을 알릴까요<span class="tag">what</span></h3>
@@ -337,8 +349,8 @@ td code { color: var(--accent); white-space: nowrap; }
               <label class="chip"><input type="radio" name="target" value="channel" id="m-t-channel"><span>채널</span></label>
               <label class="chip"><input type="radio" name="target" value="person" id="m-t-person"><span>사람 (DM)</span></label>
             </div>
-            <label class="field" data-when="target=channel"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="m-channel" list="recent-channels" name="channel" spellcheck="false"></span></label>
-            <label class="field" data-when="target=person"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="m-person" list="recent-people" name="person" spellcheck="false"></span></label>
+            <label class="field" data-when="target=channel"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="m-channel" data-recent="channel" name="channel" spellcheck="false"></span><div class="rchips" data-for="m-channel" hidden></div></label>
+            <label class="field" data-when="target=person"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="m-person" data-recent="people" name="person" spellcheck="false"></span><div class="rchips" data-for="m-person" hidden></div></label>
           </section>
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">2</span>메시지<span class="tag">what</span></h3>
@@ -390,12 +402,12 @@ td code { color: var(--accent); white-space: nowrap; }
           <section class="step" style="--seg: var(--who)">
             <h3><span class="num">2</span>어디서, 누가<span class="tag">사람 · 채널</span></h3>
             <div class="row">
-              <label class="field"><span class="lbl">이 채널에서</span><span class="prefixed" data-prefix="#"><input type="text" id="s-inc" list="recent-channels" name="inc" spellcheck="false"></span></label>
-              <label class="field"><span class="lbl">이 채널은 빼고</span><span class="prefixed" data-prefix="#"><input type="text" id="s-exc" list="recent-channels" name="exc" spellcheck="false"></span></label>
+              <label class="field"><span class="lbl">이 채널에서</span><span class="prefixed" data-prefix="#"><input type="text" id="s-inc" data-recent="channel" name="inc" spellcheck="false"></span><div class="rchips" data-for="s-inc" hidden></div></label>
+              <label class="field"><span class="lbl">이 채널은 빼고</span><span class="prefixed" data-prefix="#"><input type="text" id="s-exc" data-recent="channel" name="exc" spellcheck="false"></span><div class="rchips" data-for="s-exc" hidden></div></label>
             </div>
             <div class="row">
-              <label class="field"><span class="lbl">이 사람이 보낸</span><span class="prefixed" data-prefix="@"><input type="text" id="s-from" list="recent-people" name="from" spellcheck="false"></span></label>
-              <label class="field"><span class="lbl">이 사람과의 스레드·DM</span><span class="prefixed" data-prefix="@"><input type="text" id="s-with" list="recent-people" name="with" spellcheck="false"></span></label>
+              <label class="field"><span class="lbl">이 사람이 보낸</span><span class="prefixed" data-prefix="@"><input type="text" id="s-from" data-recent="people" name="from" spellcheck="false"></span><div class="rchips" data-for="s-from" hidden></div></label>
+              <label class="field"><span class="lbl">이 사람과의 스레드·DM</span><span class="prefixed" data-prefix="@"><input type="text" id="s-with" data-recent="people" name="with" spellcheck="false"></span><div class="rchips" data-for="s-with" hidden></div></label>
             </div>
             <p class="hint">여러 개는 쉼표로 구분하세요.</p>
           </section>
@@ -435,11 +447,11 @@ td code { color: var(--accent); white-space: nowrap; }
         <form class="steps cmd-form" data-cmd="invite" autocomplete="off">
           <section class="step" style="--seg: var(--who)">
             <h3><span class="num">1</span>초대할 사람<span class="tag">who</span></h3>
-            <label class="field"><span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span><span class="prefixed" data-prefix="@"><input type="text" id="i-people" list="recent-people" name="people" spellcheck="false"></span></label>
+            <label class="field"><span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span><span class="prefixed" data-prefix="@"><input type="text" id="i-people" data-recent="people" name="people" spellcheck="false"></span><div class="rchips" data-for="i-people" hidden></div></label>
           </section>
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">2</span>초대할 채널 (선택)<span class="tag">channel</span></h3>
-            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="i-channel" list="recent-channels" name="channel" spellcheck="false"></span></label>
+            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="i-channel" data-recent="channel" name="channel" spellcheck="false"></span><div class="rchips" data-for="i-channel" hidden></div></label>
           </section>
         </form>
       </section>
@@ -454,7 +466,7 @@ td code { color: var(--accent); white-space: nowrap; }
         <form class="steps cmd-form" data-cmd="remove" autocomplete="off">
           <section class="step" style="--seg: var(--who)">
             <h3><span class="num">1</span>내보낼 사람<span class="tag">who</span></h3>
-            <label class="field"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="rm-person" list="recent-people" name="person" spellcheck="false"></span></label>
+            <label class="field"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="rm-person" data-recent="people" name="person" spellcheck="false"></span><div class="rchips" data-for="rm-person" hidden></div></label>
           </section>
         </form>
       </section>
@@ -500,7 +512,7 @@ td code { color: var(--accent); white-space: nowrap; }
         <form class="steps cmd-form" data-cmd="mute" autocomplete="off">
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">1</span>음소거할 채널 (선택)<span class="tag">channel</span></h3>
-            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="mu-channel" list="recent-channels" name="channel" spellcheck="false"></span></label>
+            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="mu-channel" data-recent="channel" name="channel" spellcheck="false"></span><div class="rchips" data-for="mu-channel" hidden></div></label>
           </section>
         </form>
       </section>
@@ -610,8 +622,6 @@ td code { color: var(--accent); white-space: nowrap; }
   <p class="foot">Slack 공식 도구가 아닙니다. 명령어 목록과 문법은 Slack 도움말(단축키·방해 금지·검색 문서)과 Message Scheduler 앱 소개 페이지를 바탕으로 만들었어요. 워크스페이스 관리자가 일부 명령어를 막아 두었을 수 있고, 시간은 Slack 프로필의 시간대 기준이에요.</p>
 </div>
 
-<datalist id="recent-channels"></datalist>
-<datalist id="recent-people"></datalist>
 <script>
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
@@ -623,9 +633,9 @@ td code { color: var(--accent); white-space: nowrap; }
   // values remembered across visits and shared between commands.
   // fields: [command, field name, takes only one value]
   const SHARED = {
-    channel: { key: 'slack-cmd-builder:channel', datalist: 'recent-channels', strip: /^#+/, multi: false,
+    channel: { key: 'slack-cmd-builder:channel', strip: /^#+/, multi: false,
       fields: [['remind', 'channel', true], ['msg', 'channel', true], ['search', 'inc', true], ['invite', 'channel', true]] },
-    people: { key: 'slack-cmd-builder:people', datalist: 'recent-people', strip: /^@+/, multi: true,
+    people: { key: 'slack-cmd-builder:people', strip: /^@+/, multi: true,
       fields: [['remind', 'people', false], ['invite', 'people', false], ['remove', 'person', false], ['msg', 'person', true]] }
   };
   function loadShared(g, oldField) {
@@ -982,11 +992,15 @@ td code { color: var(--accent); white-space: nowrap; }
 
   ORDER.forEach(c => { setForm(forms[c], DEFAULTS[c]); setForm(forms[c], store.forms[c]); });
 
-  // ---------- remembered channel and people
-  const normShared = (g, v) => list(v, g.strip).map(g === SHARED.channel ? chan : user).filter(Boolean);
-  function renderRecent(g) {
-    $('#' + g.datalist).innerHTML = g.state.recent.map(c => `<option value="${esc(c)}"></option>`).join('');
-  }
+  // ---------- remembered channel and people (shown as chips under each field)
+  const RECENT_MAX = 12;
+  // fields that hold a comma list: a chip toggles its name in and out; other fields take one value
+  const MULTI = new Set(['r-people', 'i-people', 'rm-person', 's-inc', 's-exc', 's-from', 's-with']);
+  // channel names cannot hold spaces, so "Design Sync" is one channel (design-sync); only commas separate channels
+  const normShared = (g, v) => (g === SHARED.channel ? String(v || '').split(',').map(chan) : list(v, g.strip).map(user)).filter(Boolean);
+  const groupOf = el => SHARED[el.dataset.recent];
+  const prefixOf = g => (g === SHARED.channel ? '#' : '@');
+
   function share(g, vals, fromEl) {
     g.state.last = vals.join(', '); saveShared(g);
     g.fields.forEach(([cmd, name, single]) => {
@@ -997,9 +1011,42 @@ td code { color: var(--accent); white-space: nowrap; }
     });
     persist();
   }
+  // new names go to the front; ones already saved keep their place so chips do not jump around
+  function remember(g, vals) {
+    const fresh = vals.filter(v => !g.state.recent.includes(v));
+    if (!fresh.length) return;
+    g.state.recent = [...fresh, ...g.state.recent].slice(0, RECENT_MAX);
+    saveShared(g); renderChips();
+  }
+  function renderChips() {
+    $$('.rchips').forEach(row => {
+      const el = document.getElementById(row.dataset.for); const g = groupOf(el);
+      const cur = normShared(g, el.value);
+      row.hidden = !g.state.recent.length;
+      row.innerHTML = g.state.recent.map(v => {
+        const on = cur.includes(v);
+        return `<span class="rchip${on ? ' on' : ''}"><button type="button" class="pick" data-v="${esc(v)}" aria-pressed="${on}">${prefixOf(g)}${esc(v)}</button><button type="button" class="del" data-v="${esc(v)}" aria-label="${prefixOf(g)}${esc(v)} 저장 목록에서 지우기">×</button></span>`;
+      }).join('');
+    });
+  }
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.rchip button'); if (!btn) return;
+    e.preventDefault();
+    const el = document.getElementById(btn.closest('.rchips').dataset.for); const g = groupOf(el); const v = btn.dataset.v;
+    if (btn.classList.contains('del')) {
+      g.state.recent = g.state.recent.filter(x => x !== v); saveShared(g); renderChips(); return;
+    }
+    if (MULTI.has(el.id)) {
+      const cur = normShared(g, el.value);
+      el.value = (cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v]).join(', ');
+    } else el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
   Object.values(SHARED).forEach(g => {
     const saved = normShared(g, g.state.last);
     if (saved.length) share(g, saved, null);
+    if (!g.state.recent.length && saved.length) { g.state.recent = saved.slice(0, RECENT_MAX); saveShared(g); }
     g.fields.forEach(([cmd, name]) => {
       const el = forms[cmd].elements[name];
       el.addEventListener('input', () => {
@@ -1007,15 +1054,14 @@ td code { color: var(--accent); white-space: nowrap; }
         if (vals.length === 1 || (vals.length > 1 && g.multi)) share(g, vals, el);
       });
     });
-    // any field using this suggestion list adds to it once the value is committed
-    $$(`input[list="${g.datalist}"]`).forEach(el => el.addEventListener('change', () => {
-      const added = normShared(g, el.value);
-      if (!added.length) return;
-      g.state.recent = [...added, ...g.state.recent.filter(c => !added.includes(c))].slice(0, 8);
-      saveShared(g); renderRecent(g);
-    }));
-    renderRecent(g);
   });
+  // typed values are saved as chips once the field is committed (blur or Enter)
+  $$('input[data-recent]').forEach(el => {
+    el.addEventListener('change', () => remember(groupOf(el), normShared(groupOf(el), el.value)));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') remember(groupOf(el), normShared(groupOf(el), el.value)); });
+  });
+  Object.values(forms).forEach(f => f.addEventListener('input', renderChips));
+  renderChips();
   // keep /remind and /msg on the same kind of recipient; /msg has no "me", so "me" is never overwritten
   const TARGET_MAP = { remind: { channel: 'channel', people: 'person' }, msg: { channel: 'channel', person: 'people' } };
   function mirrorTarget(from) {
@@ -1101,7 +1147,7 @@ td code { color: var(--accent); white-space: nowrap; }
       forms.remind.elements.date.value = iso(d); render(); return;
     }
     const p = e.target.closest('[data-preset]');
-    if (p && PRESETS[active]) { const v = PRESETS[active][Number(p.dataset.preset)][1]; setForm(forms[active], Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x === '$CH' ? CH() : x]))); render(); }
+    if (p && PRESETS[active]) { const v = PRESETS[active][Number(p.dataset.preset)][1]; setForm(forms[active], Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x === '$CH' ? CH() : x]))); render(); renderChips(); }
   });
   Object.values(forms).forEach(f => {
     f.addEventListener('input', render);
