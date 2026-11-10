@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<title>Slack 명령어 빌더</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+</head><body>
+<style>
+/* Layout: command picker on top; below, the chosen command's form on the left and a sticky composer on the right that colors each part of the built command; quick no-argument commands and per-command references underneath */
+:root {
+  --bg: #f2f5f4; --surface: #ffffff; --fg: #15211e; --muted: #5a6a66; --line: #d5dfdb;
+  --accent: #0b7560; --accent-ink: #ffffff; --accent-soft: #dcefe8;
+  --who: #2c5bbf; --what: #0b7560; --when: #ad5016;
+  --warn-bg: #fff3e2; --warn-fg: #7a4a0c; --err-bg: #fdeceb; --err-fg: #9b2a20; --info-bg: #eef3f2; --info-fg: #3d4d49;
+  --code-bg: #11201c; --code-fg: #e3efeb; --code-dim: #8aa09a; --code-line: #26413a;
+  --code-who: #9dbcff; --code-what: #7fe0c4; --code-when: #ffb27a; --code-opt: #e2b3ff;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1312; --surface: #151d1b; --fg: #e2ebe8; --muted: #93a49f; --line: #27332f;
+    --accent: #4cc7a6; --accent-ink: #052219; --accent-soft: #163029;
+    --who: #8fb0ff; --what: #4cc7a6; --when: #ffa86b;
+    --warn-bg: #2c2313; --warn-fg: #f3c98a; --err-bg: #331a17; --err-fg: #f5a59c; --info-bg: #1b2422; --info-fg: #b5c4c0;
+    --code-bg: #0a100e; --code-fg: #e3efeb; --code-dim: #7f948e; --code-line: #1f2d29;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1312; --surface: #151d1b; --fg: #e2ebe8; --muted: #93a49f; --line: #27332f;
+  --accent: #4cc7a6; --accent-ink: #052219; --accent-soft: #163029;
+  --who: #8fb0ff; --what: #4cc7a6; --when: #ffa86b;
+  --warn-bg: #2c2313; --warn-fg: #f3c98a; --err-bg: #331a17; --err-fg: #f5a59c; --info-bg: #1b2422; --info-fg: #b5c4c0;
+  --code-bg: #0a100e; --code-fg: #e3efeb; --code-dim: #7f948e; --code-line: #1f2d29;
+  color-scheme: dark;
+}
+
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.6; }
+* { box-sizing: border-box; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 36px 64px;
+  display: grid; gap: 24px;
+}
+
+.top { display: grid; gap: 6px; }
+.top h1 { margin: 0; font-size: 30px; line-height: 1.2; font-weight: 700; text-wrap: balance; letter-spacing: -0.01em; }
+.top h1 .slash { font-family: var(--font-mono); font-weight: 500; color: var(--accent); margin-right: 4px; }
+.top p { margin: 0; color: var(--muted); max-width: 64ch; }
+
+/* Command picker */
+.cmdnav { display: flex; flex-wrap: wrap; gap: 14px 28px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.navgroup { display: grid; gap: 6px; min-width: 0; }
+.navlbl { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { font-family: var(--font-mono); font-size: 14px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 8px; text-decoration: none; color: var(--fg); background: var(--bg); transition: background-color .12s, border-color .12s; }
+.tab:hover { border-color: var(--accent); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tab[aria-current="page"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tab .app { font-family: var(--font-ui); font-size: 11px; margin-left: 6px; color: var(--when); }
+.tab[aria-current="page"] .app { color: inherit; opacity: .75; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 430px); gap: 24px; align-items: start; }
+@media (max-width: 880px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { display: grid; gap: 16px; min-width: 0; }
+.intro { display: grid; gap: 8px; }
+.intro h2 { margin: 0; font-family: var(--font-mono); font-size: 22px; font-weight: 500; }
+.intro p { margin: 0; color: var(--muted); max-width: 62ch; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.badge { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--info-bg); color: var(--info-fg); }
+.badge.warn { background: var(--warn-bg); color: var(--warn-fg); }
+.badge.ok { background: var(--accent-soft); color: var(--fg); }
+
+/* Steps */
+.steps { display: grid; gap: 16px; margin: 0; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; display: grid; gap: 14px; min-width: 0; }
+.step h3 { margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+.num { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-family: var(--font-mono); font-size: 13px; font-weight: 500; background: var(--seg, var(--accent)); color: var(--surface); flex: none; }
+.tag { margin-left: auto; font-family: var(--font-mono); font-size: 12px; font-weight: 400; color: var(--seg, var(--muted)); letter-spacing: 0.04em; }
+.sub { display: grid; gap: 12px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.chip span { display: inline-block; padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; background: var(--surface); color: var(--fg); transition: background-color .12s, border-color .12s; user-select: none; }
+.chip span:hover { border-color: var(--accent); }
+.chip input:checked + span { background: var(--accent-soft); border-color: var(--accent); font-weight: 500; }
+.chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.days .chip span { min-width: 44px; text-align: center; padding-inline: 10px; }
+.chip.box span::before { content: ""; display: inline-block; width: 10px; height: 10px; border: 1.5px solid var(--muted); border-radius: 3px; margin-right: 8px; vertical-align: 0; }
+.chip.box input:checked + span::before { background: var(--accent); border-color: var(--accent); }
+
+.field { display: grid; gap: 6px; min-width: 0; }
+.field > .lbl { font-size: 13px; color: var(--muted); }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+input[type="text"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 12px; width: 100%; min-width: 0;
+}
+textarea { resize: vertical; min-height: 64px; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.prefixed { position: relative; display: block; }
+.prefixed::before { content: attr(data-prefix); position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-family: var(--font-mono); pointer-events: none; }
+.prefixed input { padding-left: 28px; font-family: var(--font-mono); font-size: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.row > * { flex: 1 1 140px; }
+
+.quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn-ghost { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 999px; border: 1px dashed var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.btn-ghost:hover { color: var(--fg); border-color: var(--accent); }
+.btn-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Output */
+.out { display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); min-width: 0; }
+@media (max-width: 880px) { .out { position: static; } }
+.composer { background: var(--code-bg); color: var(--code-fg); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; }
+.composer-head { font-size: 12.5px; color: var(--code-dim); letter-spacing: 0.02em; }
+.cmds { display: grid; gap: 10px; }
+.cmd-item { display: grid; gap: 4px; }
+.cmd-label { font-size: 12px; color: var(--code-dim); }
+.cmd { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--code-line); border-radius: 8px; }
+.cmd code { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 14.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+.s-cmd { color: var(--code-fg); font-weight: 500; }
+.s-who { color: var(--code-who); }
+.s-what { color: var(--code-what); }
+.s-when { color: var(--code-when); }
+.s-opt { color: var(--code-opt); }
+.copy { flex: none; font: inherit; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--code-what); background: transparent; color: var(--code-what); cursor: pointer; white-space: nowrap; }
+.copy:hover { background: var(--code-line); }
+.copy:focus-visible { outline: 2px solid var(--code-what); outline-offset: 2px; }
+.copy.done { background: var(--code-what); color: var(--code-bg); }
+.copy:disabled { opacity: .45; cursor: not-allowed; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--code-dim); }
+.legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: currentColor; }
+.legend .who { color: var(--code-who); } .legend .what { color: var(--code-what); } .legend .when { color: var(--code-when); } .legend .opt { color: var(--code-opt); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: grid; gap: 12px; min-width: 0; }
+.summary { margin: 0; font-size: 15.5px; }
+.summary b { font-weight: 700; }
+.card h3 { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.06em; }
+.next { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-variant-numeric: tabular-nums; }
+.next li { display: flex; gap: 10px; align-items: baseline; }
+.next li::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; transform: translateY(-2px); }
+.notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.notes:empty { display: none; }
+.notes li { font-size: 13px; padding: 8px 10px; border-radius: 8px; background: var(--info-bg); color: var(--info-fg); }
+.notes li.warn { background: var(--warn-bg); color: var(--warn-fg); }
+.notes li.err { background: var(--err-bg); color: var(--err-fg); font-weight: 500; }
+.notes code, .refs code { font-family: var(--font-mono); font-size: 0.92em; }
+
+.presets { display: grid; gap: 8px; }
+.presets .lbl { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; }
+
+/* Quick commands */
+.section-h { margin: 0; font-size: 18px; font-weight: 700; }
+.section-p { margin: 0; color: var(--muted); font-size: 14px; }
+.qgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px; }
+.q { font: inherit; text-align: left; display: grid; gap: 4px; align-content: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); cursor: pointer; min-width: 0; transition: border-color .12s; }
+.q:hover { border-color: var(--accent); }
+.q:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.q code { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--accent); display: flex; justify-content: space-between; gap: 8px; }
+.q code em { font-family: var(--font-ui); font-style: normal; font-size: 12px; font-weight: 400; color: var(--muted); }
+.q.done code em { color: var(--accent); }
+.q .d { font-size: 13.5px; }
+.q .badges { margin-top: 2px; }
+.q .badge { font-size: 11px; padding: 1px 7px; }
+
+/* References */
+.refs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.refs .card h2 { margin: 0; font-size: 16px; }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.04em; }
+tr:last-child td { border-bottom: 0; }
+td code { color: var(--accent); white-space: nowrap; }
+.foot { font-size: 12.5px; color: var(--muted); margin: 0; }
+.foot a { color: inherit; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1><span class="slash">/</span>Slack 명령어 빌더</h1>
+    <p>명령어를 고르고 빈칸만 채우면 Slack 메시지 입력창에 그대로 붙여넣을 명령어를 만들어 줍니다. 문법은 외울 필요 없어요.</p>
+  </header>
+
+  <nav class="cmdnav" aria-label="명령어 고르기">
+    <div class="navgroup"><span class="navlbl">알림 · 예약</span>
+      <div class="tabs"><a class="tab" href="#remind" data-cmd="remind">/remind</a><a class="tab" href="#schedule" data-cmd="schedule">/schedule<span class="app">앱</span></a></div>
+    </div>
+    <div class="navgroup"><span class="navlbl">메시지 · 내 상태</span>
+      <div class="tabs"><a class="tab" href="#msg" data-cmd="msg">/msg</a><a class="tab" href="#dnd" data-cmd="dnd">/dnd</a></div>
+    </div>
+    <div class="navgroup"><span class="navlbl">검색</span>
+      <div class="tabs"><a class="tab" href="#search" data-cmd="search">/search</a></div>
+    </div>
+    <div class="navgroup"><span class="navlbl">채널 관리</span>
+      <div class="tabs"><a class="tab" href="#invite" data-cmd="invite">/invite</a><a class="tab" href="#remove" data-cmd="remove">/remove</a><a class="tab" href="#topic" data-cmd="topic">/topic</a><a class="tab" href="#rename" data-cmd="rename">/rename</a><a class="tab" href="#mute" data-cmd="mute">/mute</a></div>
+    </div>
+  </nav>
+
+  <main class="grid">
+    <div class="panels">
+
+      <!-- /remind -->
+      <section class="panel" data-cmd="remind" hidden>
+        <div class="intro">
+          <h2>/remind</h2>
+          <p>정해진 시간에 나, 채널, 특정 사람에게 Slackbot이 알림을 보내요. 한 번만 또는 반복으로 걸 수 있어요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span><span class="badge">모든 플랜</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="remind" autocomplete="off">
+          <section class="step" style="--seg: var(--who)">
+            <h3><span class="num">1</span>누구에게 보낼까요<span class="tag">who</span></h3>
+            <div class="chips" role="radiogroup" aria-label="받는 곳">
+              <label class="chip"><input type="radio" name="target" value="me" id="r-t-me"><span>나</span></label>
+              <label class="chip"><input type="radio" name="target" value="channel" id="r-t-channel"><span>채널</span></label>
+              <label class="chip"><input type="radio" name="target" value="people" id="r-t-people"><span>특정 사람</span></label>
+            </div>
+            <label class="field" data-when="target=channel">
+              <span class="lbl">채널 이름</span>
+              <span class="prefixed" data-prefix="#"><input type="text" id="r-channel" name="channel" placeholder="kr-dev-lead" spellcheck="false"></span>
+            </label>
+            <label class="field" data-when="target=people">
+              <span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span>
+              <span class="prefixed" data-prefix="@"><input type="text" id="r-people" name="people" placeholder="minsu, jiyoung" spellcheck="false"></span>
+            </label>
+          </section>
+          <section class="step" style="--seg: var(--what)">
+            <h3><span class="num">2</span>무엇을 알릴까요<span class="tag">what</span></h3>
+            <label class="field"><span class="lbl">알림 내용</span><textarea id="r-msg" name="msg" rows="2" placeholder="이번 주 주간보고서 작성해 주세요"></textarea></label>
+            <label class="field"><span class="lbl">함께 보낼 링크 (선택)</span><input type="text" id="r-link" name="link" placeholder="https://…slack.com/archives/…" spellcheck="false"></label>
+            <p class="hint">Slack 메시지 링크는 메시지의 더보기(⋯) → <b>링크 복사</b>로 가져올 수 있어요.</p>
+          </section>
+          <section class="step" style="--seg: var(--when)">
+            <h3><span class="num">3</span>언제 알릴까요<span class="tag">when</span></h3>
+            <div class="chips" role="radiogroup" aria-label="한 번 또는 반복">
+              <label class="chip"><input type="radio" name="mode" value="once" id="r-m-once"><span>한 번만</span></label>
+              <label class="chip"><input type="radio" name="mode" value="repeat" id="r-m-repeat"><span>반복</span></label>
+            </div>
+            <div class="sub" data-when="mode=once">
+              <div class="chips" role="radiogroup" aria-label="한 번 알림 시점">
+                <label class="chip"><input type="radio" name="once" value="in" id="r-o-in"><span>몇 분·시간 뒤</span></label>
+                <label class="chip"><input type="radio" name="once" value="today" id="r-o-today"><span>오늘</span></label>
+                <label class="chip"><input type="radio" name="once" value="tomorrow" id="r-o-tomorrow"><span>내일</span></label>
+                <label class="chip"><input type="radio" name="once" value="date" id="r-o-date"><span>날짜 지정</span></label>
+              </div>
+              <div class="row" data-when="once=in">
+                <label class="field"><span class="lbl">얼마 뒤</span><input type="number" id="r-inN" name="inN" min="1" max="999"></label>
+                <label class="field"><span class="lbl">단위</span><select id="r-inUnit" name="inUnit"><option value="minutes">분</option><option value="hours">시간</option></select></label>
+              </div>
+              <div class="sub" data-when="once=date">
+                <label class="field"><span class="lbl">날짜</span><input type="date" id="r-date" name="date"></label>
+                <div class="quick">
+                  <button type="button" class="btn-ghost" data-quick="thisfri">이번 주 금요일</button>
+                  <button type="button" class="btn-ghost" data-quick="nextmon">다음 주 월요일</button>
+                  <button type="button" class="btn-ghost" data-quick="nextfri">다음 주 금요일</button>
+                </div>
+              </div>
+            </div>
+            <div class="sub" data-when="mode=repeat">
+              <div class="chips" role="radiogroup" aria-label="반복 주기">
+                <label class="chip"><input type="radio" name="repeat" value="daily" id="r-r-daily"><span>매일</span></label>
+                <label class="chip"><input type="radio" name="repeat" value="weekday" id="r-r-weekday"><span>평일 (월–금)</span></label>
+                <label class="chip"><input type="radio" name="repeat" value="weekly" id="r-r-weekly"><span>매주</span></label>
+                <label class="chip"><input type="radio" name="repeat" value="biweekly" id="r-r-biweekly"><span>격주</span></label>
+                <label class="chip"><input type="radio" name="repeat" value="monthly" id="r-r-monthly"><span>매월</span></label>
+              </div>
+              <div class="field" data-when="repeat=weekly|biweekly">
+                <span class="lbl">요일</span>
+                <div class="chips days" role="radiogroup" aria-label="요일">
+                  <label class="chip"><input type="radio" name="dow" value="1" id="r-d-1"><span>월</span></label>
+                  <label class="chip"><input type="radio" name="dow" value="2" id="r-d-2"><span>화</span></label>
+                  <label class="chip"><input type="radio" name="dow" value="3" id="r-d-3"><span>수</span></label>
+                  <label class="chip"><input type="radio" name="dow" value="4" id="r-d-4"><span>목</span></label>
+                  <label class="chip"><input type="radio" name="dow" value="5" id="r-d-5"><span>금</span></label>
+                  <label class="chip"><input type="radio" name="dow" value="6" id="r-d-6"><span>토</span></label>
+                  <label class="chip"><input type="radio" name="dow" value="0" id="r-d-0"><span>일</span></label>
+                </div>
+              </div>
+              <label class="field" data-when="repeat=monthly"><span class="lbl">매월 며칠 (1–28일)</span><input type="number" id="r-mday" name="mday" min="1" max="28"></label>
+            </div>
+            <label class="field" data-hide="mode=once;once=in"><span class="lbl">시각</span><input type="time" id="r-time" name="time" step="300"></label>
+          </section>
+        </form>
+      </section>
+
+      <!-- /schedule -->
+      <section class="panel" data-cmd="schedule" hidden>
+        <div class="intro">
+          <h2>/schedule</h2>
+          <p>내 이름으로 메시지를 예약 전송해요. Slack 기본 명령어가 아니라 <b>Message Scheduler</b> 앱의 명령어라서, 앱을 설치해야 동작해요.</p>
+          <div class="badges"><span class="badge warn">앱 설치 필요</span><span class="badge warn">유료 · 14일 무료 체험</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="schedule" autocomplete="off">
+          <section class="step" style="--seg: var(--what)">
+            <h3><span class="num">1</span>보낼 메시지<span class="tag">what</span></h3>
+            <label class="field"><span class="lbl">메시지</span><textarea id="sc-msg" name="msg" rows="2"></textarea></label>
+            <p class="hint">명령어를 입력한 채널이나 DM으로 보내지는 방식으로 보여요. 보낼 곳에서 입력하세요.</p>
+          </section>
+          <section class="step" style="--seg: var(--when)">
+            <h3><span class="num">2</span>언제 보낼까요<span class="tag">when</span></h3>
+            <div class="chips" role="radiogroup" aria-label="보낼 시점">
+              <label class="chip"><input type="radio" name="when" value="in" id="sc-w-in"><span>몇 분·시간 뒤</span></label>
+              <label class="chip"><input type="radio" name="when" value="at" id="sc-w-at"><span>오늘 특정 시각</span></label>
+              <label class="chip"><input type="radio" name="when" value="tomorrow" id="sc-w-tomorrow"><span>내일</span></label>
+              <label class="chip"><input type="radio" name="when" value="nextweek" id="sc-w-nextweek"><span>다음 주</span></label>
+            </div>
+            <div class="row" data-when="when=in">
+              <label class="field"><span class="lbl">얼마 뒤</span><input type="number" id="sc-inN" name="inN" min="1" max="999"></label>
+              <label class="field"><span class="lbl">단위</span><select id="sc-inUnit" name="inUnit"><option value="minutes">분</option><option value="hours">시간</option></select></label>
+            </div>
+            <label class="field" data-when="when=at"><span class="lbl">시각</span><input type="time" id="sc-time" name="time" step="300"></label>
+          </section>
+        </form>
+      </section>
+
+      <!-- /msg -->
+      <section class="panel" data-cmd="msg" hidden>
+        <div class="intro">
+          <h2>/msg</h2>
+          <p>지금 보고 있는 화면을 벗어나지 않고 다른 채널이나 사람에게 메시지를 바로 보내요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span><span class="badge">보내면 바로 전송</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="msg" autocomplete="off">
+          <section class="step" style="--seg: var(--who)">
+            <h3><span class="num">1</span>받는 곳<span class="tag">who</span></h3>
+            <div class="chips" role="radiogroup" aria-label="받는 곳">
+              <label class="chip"><input type="radio" name="target" value="channel" id="m-t-channel"><span>채널</span></label>
+              <label class="chip"><input type="radio" name="target" value="person" id="m-t-person"><span>사람 (DM)</span></label>
+            </div>
+            <label class="field" data-when="target=channel"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="m-channel" name="channel" spellcheck="false"></span></label>
+            <label class="field" data-when="target=person"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="m-person" name="person" spellcheck="false"></span></label>
+          </section>
+          <section class="step" style="--seg: var(--what)">
+            <h3><span class="num">2</span>메시지<span class="tag">what</span></h3>
+            <label class="field"><span class="lbl">보낼 내용</span><textarea id="m-text" name="text" rows="2"></textarea></label>
+          </section>
+        </form>
+      </section>
+
+      <!-- /dnd -->
+      <section class="panel" data-cmd="dnd" hidden>
+        <div class="intro">
+          <h2>/dnd</h2>
+          <p>방해 금지 모드로 내 알림을 잠시 멈추거나 다시 켜요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span><span class="badge">모든 플랜</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="dnd" autocomplete="off">
+          <section class="step" style="--seg: var(--when)">
+            <h3><span class="num">1</span>얼마나 멈출까요<span class="tag">when</span></h3>
+            <div class="chips" role="radiogroup" aria-label="멈출 기간">
+              <label class="chip"><input type="radio" name="mode" value="for" id="d-m-for"><span>몇 분·시간 동안</span></label>
+              <label class="chip"><input type="radio" name="mode" value="until" id="d-m-until"><span>특정 시각까지</span></label>
+              <label class="chip"><input type="radio" name="mode" value="tonight" id="d-m-tonight"><span>오늘 밤까지</span></label>
+              <label class="chip"><input type="radio" name="mode" value="morning" id="d-m-morning"><span>내일 아침까지</span></label>
+              <label class="chip"><input type="radio" name="mode" value="off" id="d-m-off"><span>다시 켜기</span></label>
+            </div>
+            <div class="row" data-when="mode=for">
+              <label class="field"><span class="lbl">기간</span><input type="number" id="d-n" name="n" min="1" max="999"></label>
+              <label class="field"><span class="lbl">단위</span><select id="d-unit" name="unit"><option value="minutes">분</option><option value="hours">시간</option></select></label>
+            </div>
+            <label class="field" data-when="mode=until"><span class="lbl">이 시각까지</span><input type="time" id="d-time" name="time" step="300"></label>
+          </section>
+        </form>
+      </section>
+
+      <!-- /search -->
+      <section class="panel" data-cmd="search" hidden>
+        <div class="intro">
+          <h2>/search</h2>
+          <p>검색 조건(<code>in:</code>, <code>from:</code>, <code>during:</code> 같은 수식어)을 조합해 줘요. 만든 검색어는 상단 검색창에 붙여넣어도 돼요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="search" autocomplete="off">
+          <section class="step" style="--seg: var(--what)">
+            <h3><span class="num">1</span>찾을 말<span class="tag">검색어</span></h3>
+            <label class="field"><span class="lbl">키워드</span><input type="text" id="s-kw" name="kw"></label>
+            <label class="field"><span class="lbl">정확히 이 문구 (따옴표 검색)</span><input type="text" id="s-phrase" name="phrase"></label>
+            <label class="field"><span class="lbl">빼고 싶은 단어 · 띄어쓰기로 구분</span><input type="text" id="s-exclude" name="exclude"></label>
+          </section>
+          <section class="step" style="--seg: var(--who)">
+            <h3><span class="num">2</span>어디서, 누가<span class="tag">사람 · 채널</span></h3>
+            <div class="row">
+              <label class="field"><span class="lbl">이 채널에서</span><span class="prefixed" data-prefix="#"><input type="text" id="s-inc" name="inc" spellcheck="false"></span></label>
+              <label class="field"><span class="lbl">이 채널은 빼고</span><span class="prefixed" data-prefix="#"><input type="text" id="s-exc" name="exc" spellcheck="false"></span></label>
+            </div>
+            <div class="row">
+              <label class="field"><span class="lbl">이 사람이 보낸</span><span class="prefixed" data-prefix="@"><input type="text" id="s-from" name="from" spellcheck="false"></span></label>
+              <label class="field"><span class="lbl">이 사람과의 스레드·DM</span><span class="prefixed" data-prefix="@"><input type="text" id="s-with" name="with" spellcheck="false"></span></label>
+            </div>
+            <p class="hint">여러 개는 쉼표로 구분하세요.</p>
+          </section>
+          <section class="step" style="--seg: var(--when)">
+            <h3><span class="num">3</span>언제<span class="tag">날짜</span></h3>
+            <div class="chips" role="radiogroup" aria-label="날짜 조건">
+              <label class="chip"><input type="radio" name="date" value="none" id="s-d-none"><span>전체 기간</span></label>
+              <label class="chip"><input type="radio" name="date" value="after" id="s-d-after"><span>이후</span></label>
+              <label class="chip"><input type="radio" name="date" value="before" id="s-d-before"><span>이전</span></label>
+              <label class="chip"><input type="radio" name="date" value="on" id="s-d-on"><span>그날</span></label>
+              <label class="chip"><input type="radio" name="date" value="during" id="s-d-during"><span>특정 월·연도</span></label>
+            </div>
+            <label class="field" data-when="date=after|before|on"><span class="lbl">날짜</span><input type="date" id="s-dateVal" name="dateVal"></label>
+            <label class="field" data-when="date=during"><span class="lbl">월 또는 연도</span>
+              <select id="s-period" name="period"></select>
+            </label>
+          </section>
+          <section class="step" style="--seg: var(--muted)">
+            <h3><span class="num">4</span>기타 조건<span class="tag">선택</span></h3>
+            <div class="chips">
+              <label class="chip box"><input type="checkbox" name="thread" id="s-thread"><span>스레드 안에서만</span></label>
+              <label class="chip box"><input type="checkbox" name="saved" id="s-saved"><span>내가 저장한 항목</span></label>
+              <label class="chip box"><input type="checkbox" name="pin" id="s-pin"><span>고정된 메시지</span></label>
+            </div>
+            <label class="field"><span class="lbl">이 이모지 반응이 달린 메시지 (이모지 이름)</span><span class="prefixed" data-prefix=":"><input type="text" id="s-emoji" name="emoji" placeholder="eyes" spellcheck="false"></span></label>
+          </section>
+        </form>
+      </section>
+
+      <!-- /invite -->
+      <section class="panel" data-cmd="invite" hidden>
+        <div class="intro">
+          <h2>/invite</h2>
+          <p>사람을 채널에 초대해요. 채널을 비워 두면 명령어를 입력한 채널로 초대해요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="invite" autocomplete="off">
+          <section class="step" style="--seg: var(--who)">
+            <h3><span class="num">1</span>초대할 사람<span class="tag">who</span></h3>
+            <label class="field"><span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span><span class="prefixed" data-prefix="@"><input type="text" id="i-people" name="people" spellcheck="false"></span></label>
+          </section>
+          <section class="step" style="--seg: var(--what)">
+            <h3><span class="num">2</span>초대할 채널 (선택)<span class="tag">channel</span></h3>
+            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="i-channel" name="channel" spellcheck="false"></span></label>
+          </section>
+        </form>
+      </section>
+
+      <!-- /remove -->
+      <section class="panel" data-cmd="remove" hidden>
+        <div class="intro">
+          <h2>/remove</h2>
+          <p>지금 채널에서 사람을 내보내요. <code>/kick</code>도 같은 명령어예요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span><span class="badge warn">관리자만 쓸 수 있을 수 있음</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="remove" autocomplete="off">
+          <section class="step" style="--seg: var(--who)">
+            <h3><span class="num">1</span>내보낼 사람<span class="tag">who</span></h3>
+            <label class="field"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="rm-person" name="person" spellcheck="false"></span></label>
+          </section>
+        </form>
+      </section>
+
+      <!-- /topic -->
+      <section class="panel" data-cmd="topic" hidden>
+        <div class="intro">
+          <h2>/topic</h2>
+          <p>명령어를 입력한 채널의 주제(채널 이름 옆에 보이는 한 줄)를 바꿔요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="topic" autocomplete="off">
+          <section class="step" style="--seg: var(--what)">
+            <h3><span class="num">1</span>새 주제<span class="tag">what</span></h3>
+            <label class="field"><span class="lbl">주제</span><input type="text" id="tp-text" name="text"></label>
+          </section>
+        </form>
+      </section>
+
+      <!-- /rename -->
+      <section class="panel" data-cmd="rename" hidden>
+        <div class="intro">
+          <h2>/rename</h2>
+          <p>명령어를 입력한 채널의 이름을 바꿔요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span><span class="badge warn">관리자만 쓸 수 있을 수 있음</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="rename" autocomplete="off">
+          <section class="step" style="--seg: var(--what)">
+            <h3><span class="num">1</span>새 채널 이름<span class="tag">what</span></h3>
+            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="rn-name" name="name" spellcheck="false"></span></label>
+            <p class="hint">대문자는 소문자로, 띄어쓰기는 하이픈(-)으로 바꿔 드려요.</p>
+          </section>
+        </form>
+      </section>
+
+      <!-- /mute -->
+      <section class="panel" data-cmd="mute" hidden>
+        <div class="intro">
+          <h2>/mute</h2>
+          <p>채널 알림을 음소거하거나 다시 켜요. 채널을 비워 두면 명령어를 입력한 대화에 적용돼요.</p>
+          <div class="badges"><span class="badge ok">Slack 기본 명령어</span></div>
+        </div>
+        <form class="steps cmd-form" data-cmd="mute" autocomplete="off">
+          <section class="step" style="--seg: var(--what)">
+            <h3><span class="num">1</span>음소거할 채널 (선택)<span class="tag">channel</span></h3>
+            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="mu-channel" name="channel" spellcheck="false"></span></label>
+          </section>
+        </form>
+      </section>
+    </div>
+
+    <aside class="out">
+      <div class="composer">
+        <div class="composer-head">Slack 메시지 입력창에 붙여넣고 보내세요</div>
+        <div id="cmds" class="cmds"></div>
+        <div class="legend" id="legend" aria-hidden="true"></div>
+      </div>
+      <div class="card">
+        <p id="summary" class="summary" aria-live="polite"></p>
+        <div id="next-wrap">
+          <h3 id="next-h">다음 알림</h3>
+          <ol id="next" class="next"></ol>
+        </div>
+        <ul id="notes" class="notes"></ul>
+      </div>
+      <div class="presets" id="presets"></div>
+    </aside>
+  </main>
+
+  <section class="refs" aria-label="참고">
+    <div class="card" data-for="remind">
+      <h2>리마인더 관리할 때</h2>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>하고 싶은 것</th><th>Slack에 입력</th></tr></thead>
+        <tbody>
+          <tr><td>내 리마인더 보기 · 삭제 · 완료</td><td><code>/remind list</code></td></tr>
+          <tr><td>Slack 도움말 보기</td><td><code>/remind help</code></td></tr>
+          <tr><td>반복 알림 바꾸기</td><td><code>/remind list</code>에서 삭제한 뒤 여기서 다시 만들기</td></tr>
+        </tbody>
+      </table></div>
+      <p class="foot">명령어 구조는 항상 <code>/remind 누구에게 "무엇을" 언제</code> 순서예요.</p>
+    </div>
+    <div class="card" data-for="remind">
+      <h2>시간 표현 바꿔 읽기</h2>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>한국어</th><th>Slack 표현</th></tr></thead>
+        <tbody>
+          <tr><td>매일 오전 9시</td><td><code>every day at 9am</code></td></tr>
+          <tr><td>평일 오전 9시 30분</td><td><code>every weekday at 9:30am</code></td></tr>
+          <tr><td>매주 금요일 오후 3시</td><td><code>every Friday at 3pm</code></td></tr>
+          <tr><td>격주 월요일</td><td><code>every other Monday at 9am</code></td></tr>
+          <tr><td>매월 1일</td><td><code>on the 1st of every month at 10am</code></td></tr>
+          <tr><td>30분 뒤</td><td><code>in 30 minutes</code></td></tr>
+          <tr><td>11월 10일 오전 9시</td><td><code>on November 10 at 9am</code></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card" data-for="schedule">
+      <h2>앱 없이 예약 전송하기</h2>
+      <p class="section-p">Slack에는 기본 예약 전송이 있어요. 메시지를 쓴 뒤 전송 버튼 옆 <b>▾</b>를 누르고 시간을 고르면 돼요. 예약한 메시지는 사이드바의 <b>Drafts &amp; sent</b>에서 볼 수 있어요. 반복 전송이 필요하면 <code>/remind</code>를 쓰세요.</p>
+    </div>
+    <div class="card" data-for="schedule">
+      <h2>앱 소개에 나온 예시</h2>
+      <div class="tbl-wrap"><table>
+        <tbody>
+          <tr><td><code>/schedule Hello in 10 minutes</code></td></tr>
+          <tr><td><code>/schedule Good morning at 9 am</code></td></tr>
+          <tr><td><code>/schedule Where's the weekly update next week</code></td></tr>
+          <tr><td><code>/schedule Have a good night team at 5:00pm</code></td></tr>
+        </tbody>
+      </table></div>
+      <p class="foot"><code>/schedule</code>만 입력하면 여러 채널 동시 예약, 시간대 지정 같은 고급 설정 창이 열려요.</p>
+    </div>
+    <div class="card" data-for="search">
+      <h2>검색 수식어</h2>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>쓰는 법</th><th>뜻</th></tr></thead>
+        <tbody>
+          <tr><td><code>"marketing report"</code></td><td>문구 그대로 찾기</td></tr>
+          <tr><td><code>marketing -report</code></td><td>report가 없는 결과만</td></tr>
+          <tr><td><code>in:#team-marketing</code></td><td>그 채널에서</td></tr>
+          <tr><td><code>-in:#team-marketing</code></td><td>그 채널 빼고</td></tr>
+          <tr><td><code>from:@Sara</code></td><td>그 사람이 보낸</td></tr>
+          <tr><td><code>with:@Sara</code></td><td>그 사람과의 스레드·DM</td></tr>
+          <tr><td><code>creator:@Sara</code></td><td>그 사람이 만든 캔버스</td></tr>
+          <tr><td><code>during:august</code></td><td>8월 중에</td></tr>
+          <tr><td><code>is:thread</code> · <code>is:saved</code> · <code>has:pin</code></td><td>스레드 · 저장 · 고정</td></tr>
+          <tr><td><code>has::eyes:</code></td><td>👀 반응이 달린</td></tr>
+          <tr><td><code>rep*</code></td><td>rep로 시작하는 단어 (3글자 이상)</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card" data-for="dnd">
+      <h2>Slack 도움말의 /dnd 예시</h2>
+      <div class="tbl-wrap"><table>
+        <tbody>
+          <tr><td>15분 동안 멈추기</td><td><code>/dnd 15 minutes</code></td></tr>
+          <tr><td>오후 5시까지</td><td><code>/dnd until 5pm</code></td></tr>
+          <tr><td>오늘 밤까지</td><td><code>/dnd until tonight</code></td></tr>
+          <tr><td>내일 아침까지</td><td><code>/dnd until tomorrow morning</code></td></tr>
+          <tr><td>다시 켜기</td><td><code>/dnd off</code></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="quick-h">
+    <h2 class="section-h" id="quick-h">바로 쓰는 명령어</h2>
+    <p class="section-p">입력할 게 없는 명령어예요. 눌러서 복사한 뒤 Slack에 붙여넣으세요.</p>
+    <div class="qgrid" id="qgrid"></div>
+  </section>
+
+  <p class="foot">Slack 공식 도구가 아닙니다. 명령어 목록과 문법은 Slack 도움말(단축키·방해 금지·검색 문서)과 Message Scheduler 앱 소개 페이지를 바탕으로 만들었어요. 워크스페이스 관리자가 일부 명령어를 막아 두었을 수 있고, 시간은 Slack 프로필의 시간대 기준이에요.</p>
+</div>
+
+<script>
+(function () {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
+  const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const STORE_KEY = 'slack-cmd-builder:v2';
+  const ORDER = ['remind', 'schedule', 'msg', 'dnd', 'search', 'invite', 'remove', 'topic', 'rename', 'mute'];
+
+  const pad = n => String(n).padStart(2, '0');
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseDate = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  function at(date, t) { const [h, m] = t.split(':').map(Number); const d = new Date(date); d.setHours(h, m, 0, 0); return d; }
+  function enTime(t) { const [h, m] = t.split(':').map(Number); const ap = h < 12 ? 'am' : 'pm'; const h12 = h % 12 || 12; return m ? `${h12}:${pad(m)}${ap}` : `${h12}${ap}`; }
+  function koTime(t) { const [h, m] = t.split(':').map(Number); const ap = h < 12 ? '오전' : '오후'; const h12 = h % 12 || 12; return `${ap} ${h12}:${pad(m)}`; }
+  const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  function ord(n) { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+  const koDate = d => `${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS_KO[d.getDay()]})`;
+  const koDateTime = d => `${koDate(d)} ${koTime(hhmm(d))}`;
+  function nextDow(from, dow, includeToday) { let n = (dow - from.getDay() + 7) % 7; if (n === 0 && !includeToday) n = 7; return addDays(from, n); }
+  const list = (s, strip) => String(s || '').split(/[\s,]+/).map(x => x.replace(strip, '')).filter(Boolean);
+  const chan = s => String(s || '').trim().replace(/^#+/, '').toLowerCase().replace(/\s+/g, '-');
+  const user = s => String(s || '').trim().replace(/^@+/, '');
+  const clampInt = (v, lo, hi, def) => Math.min(hi, Math.max(lo, parseInt(v, 10) || def));
+
+  // during: options — months, then this and last year
+  (function fillPeriods() {
+    const sel = $('#s-period'); const y = new Date().getFullYear();
+    sel.innerHTML = MONTHS_EN.map((m, i) => `<option value="${m.toLowerCase()}">${i + 1}월 (${m})</option>`).join('') +
+      `<option value="${y}">${y}년</option><option value="${y - 1}">${y - 1}년</option>`;
+  })();
+
+  const DEFAULTS = {
+    remind: { target: 'channel', channel: 'kr-dev-lead', people: '', msg: '이번 주 주간보고서 작성해 주세요', link: '', mode: 'repeat', once: 'date', inN: '30', inUnit: 'minutes', date: iso(nextDow(new Date(), 1, false)), repeat: 'weekly', dow: '5', mday: '1', time: '09:00' },
+    schedule: { msg: '주간 회의 안건 미리 공유해 주세요', when: 'at', inN: '10', inUnit: 'minutes', time: '09:00' },
+    msg: { target: 'channel', channel: 'kr-dev-lead', person: '', text: '배포 끝났어요. 확인 부탁드려요' },
+    dnd: { mode: 'for', n: '30', unit: 'minutes', time: '18:00' },
+    search: { kw: '주간보고서', phrase: '', exclude: '', inc: 'kr-dev-lead', exc: '', from: '', with: '', date: 'after', dateVal: iso(addDays(new Date(), -30)), period: MONTHS_EN[new Date().getMonth()].toLowerCase(), thread: false, saved: false, pin: false, emoji: '' },
+    invite: { people: 'minsu', channel: 'kr-dev-lead' },
+    remove: { person: 'minsu' },
+    topic: { text: '11월 2주차 배포 일정 공유' },
+    rename: { name: 'kr-dev-lead-2026' },
+    mute: { channel: 'random' }
+  };
+
+  const PRESETS = {
+    remind: [
+      ['주간보고서 · 매주 금 9시', { target: 'channel', channel: 'kr-dev-lead', msg: '이번 주 주간보고서 작성해 주세요', link: '', mode: 'repeat', repeat: 'weekly', dow: '5', time: '09:00' }],
+      ['스탠드업 · 평일 9:50', { target: 'channel', channel: 'kr-dev-lead', msg: '10분 뒤 스탠드업이에요', link: '', mode: 'repeat', repeat: 'weekday', time: '09:50' }],
+      ['경비 정산 · 매월 1일', { target: 'me', msg: '지난달 경비 정산 제출하기', link: '', mode: 'repeat', repeat: 'monthly', mday: '1', time: '10:00' }],
+      ['나에게 · 30분 뒤', { target: 'me', msg: '회의록 정리해서 공유하기', link: '', mode: 'once', once: 'in', inN: '30', inUnit: 'minutes' }]
+    ],
+    dnd: [
+      ['집중 1시간', { mode: 'for', n: '1', unit: 'hours' }],
+      ['퇴근 · 내일 아침까지', { mode: 'morning' }],
+      ['다시 켜기', { mode: 'off' }]
+    ],
+    search: [
+      ['내가 쓴 글', { kw: '', phrase: '', exclude: '', inc: '', exc: '', from: 'me', with: '', date: 'none', thread: false, saved: false, pin: false, emoji: '' }],
+      ['채널 고정 메시지', { kw: '', phrase: '', exclude: '', inc: 'kr-dev-lead', exc: '', from: '', with: '', date: 'none', thread: false, saved: false, pin: true, emoji: '' }],
+      ['이번 달 주간보고서', { kw: '주간보고서', phrase: '', exclude: '', inc: 'kr-dev-lead', exc: '', from: '', with: '', date: 'during', period: MONTHS_EN[new Date().getMonth()].toLowerCase(), thread: false, saved: false, pin: false, emoji: '' }]
+    ]
+  };
+
+  const LEGENDS = {
+    remind: [['who', '누구에게'], ['what', '무엇을'], ['when', '언제']],
+    schedule: [['what', '메시지'], ['when', '언제']],
+    msg: [['who', '받는 곳'], ['what', '메시지']],
+    dnd: [['when', '기간']],
+    search: [['what', '검색어'], ['who', '사람 · 채널'], ['when', '날짜'], ['opt', '기타 조건']],
+    invite: [['who', '초대할 사람'], ['what', '채널']],
+    remove: [['who', '내보낼 사람']],
+    topic: [['what', '새 주제']],
+    rename: [['what', '새 이름']],
+    mute: [['what', '채널']]
+  };
+
+  const QUICK = [
+    ['/status', '내 상태를 자리 비움 ↔ 활동 중으로 바꾸기', ''],
+    ['/huddle', '지금 대화에서 허들 시작', ''],
+    ['/saved', '저장한 항목 보기', ''],
+    ['/drafts', '임시 저장한 메시지 보기', 'm'],
+    ['/mentions', '나를 멘션한 글과 반응 보기', 'm'],
+    ['/dm', 'DM 목록 보기', 'm'],
+    ['/people', '사람과 사용자 그룹 둘러보기', ''],
+    ['/browse channels', '워크스페이스 채널 둘러보기', 'm'],
+    ['/browse files', '워크스페이스 파일 둘러보기', ''],
+    ['/downloads', '다운로드한 파일 보기', 'm'],
+    ['/notifications', '이 채널·DM 알림 설정 열기', ''],
+    ['/description', '이 채널 설명 바꾸기', ''],
+    ['/leave', '이 채널 나가기', ''],
+    ['/archive', '이 채널 보관하기', 'a'],
+    ['/create channel', '새 채널 만들기', 'a'],
+    ['/create workflow', '워크플로 만들기', 'p'],
+    ['/workflow', '워크플로 빌더 열기', 'm'],
+    ['/snippet', '코드·텍스트 스니펫 만들기', 'm'],
+    ['/send', '새 메시지 작성 창 열기', ''],
+    ['/gif', '메시지에 GIF 넣기', ''],
+    ['/shrug', '메시지 끝에 ¯\\_(ツ)_/¯ 붙이기', ''],
+    ['/collapse', '이 채널의 이미지·동영상 접기', ''],
+    ['/expand', '이 채널의 이미지·동영상 펼치기', ''],
+    ['/darkmode', '다크 모드 켜기·끄기', 'm'],
+    ['/shortcuts', '키보드 단축키 보기', ''],
+    ['/feedback', 'Slack 고객지원에 의견·문의 보내기', ''],
+    ['/remind list', '내 리마인더 목록 보기·삭제', ''],
+    ['/dnd off', '방해 금지 끄기', '']
+  ];
+  const FLAG = { a: ['warn', '관리자만 쓸 수 있을 수 있음'], m: ['', '모바일 앱에서 안 됨'], p: ['warn', '유료 플랜'] };
+
+  // ---------- builders: each returns { cmds:[{label?, parts:[[cls,text]]}], summary, nextTitle, next:[str], notes:[{type,html}] }
+  function notesCollector() { const n = []; const f = (type, html) => n.push({ type, html }); f.list = n; return f; }
+
+  const BUILD = {
+    remind(s) {
+      const note = notesCollector(); const now = new Date();
+      let targets = [], whoKo = '';
+      if (s.target === 'me') { targets = ['me']; whoKo = '나에게'; }
+      else if (s.target === 'channel') {
+        const c = chan(s.channel);
+        if (!c) { note('err', '채널 이름을 입력하세요. 예: kr-dev-lead'); targets = ['#채널이름']; } else targets = ['#' + c];
+        whoKo = `${targets[0]} 채널에`;
+      } else {
+        const ps = list(s.people, /^@+/);
+        if (!ps.length) { note('err', '받을 사람의 Slack 표시 이름을 입력하세요.'); targets = ['@이름']; } else targets = ps.map(p => '@' + p);
+        whoKo = `${targets.join(', ')} 님에게`;
+        note('warn', '다른 사람에게 거는 리마인더는 워크스페이스에 따라 막혀 있을 수 있어요. 안 되면 채널로 보내세요.');
+        if (ps.length > 1) note('info', '사람마다 명령어를 따로 만들었어요. 하나씩 복사해서 보내세요.');
+      }
+      let msg = s.msg.replace(/\s*\n\s*/g, ' ').trim();
+      if (msg.includes('"')) { msg = msg.replace(/"/g, "'"); note('info', '큰따옴표(")는 명령어를 깨뜨려서 작은따옴표로 바꿨어요.'); }
+      const link = s.link.trim();
+      if (link && !/^https?:\/\//i.test(link)) note('warn', '링크는 https://로 시작해야 Slack에서 링크로 보여요.');
+      let what = msg + (link ? ' ' + link : '');
+      if (!msg) { note('err', '알림 내용을 입력하세요.'); what = '알림 내용' + (link ? ' ' + link : ''); }
+
+      const t = s.time || '09:00';
+      let whenEn = '', whenKo = '', next = [];
+      const gen = pred => { const out = []; for (let i = 0; i < 400 && out.length < 3; i++) { const d = at(addDays(now, i), t); if (d > now && pred(d)) out.push(d); } return out; };
+      if (s.mode === 'once') {
+        if (s.once === 'in') {
+          const n = clampInt(s.inN, 1, 999, 1); const hrs = s.inUnit === 'hours';
+          whenEn = `in ${n} ${hrs ? (n === 1 ? 'hour' : 'hours') : (n === 1 ? 'minute' : 'minutes')}`;
+          whenKo = `${n}${hrs ? '시간' : '분'} 뒤`;
+          next = [new Date(now.getTime() + n * (hrs ? 3600000 : 60000))];
+        } else if (s.once === 'today') {
+          whenEn = `at ${enTime(t)}`; whenKo = `오늘 ${koTime(t)}`;
+          const d = at(now, t); next = [d];
+          if (d <= now) note('warn', '오늘 이 시각은 이미 지났어요. 내일이나 날짜 지정을 고르세요.');
+        } else if (s.once === 'tomorrow') {
+          whenEn = `tomorrow at ${enTime(t)}`; whenKo = `내일 ${koTime(t)}`; next = [at(addDays(now, 1), t)];
+        } else {
+          const d = s.date ? parseDate(s.date) : addDays(now, 1);
+          const otherYear = d.getFullYear() !== now.getFullYear();
+          whenEn = `on ${MONTHS_EN[d.getMonth()]} ${d.getDate()}${otherYear ? ', ' + d.getFullYear() : ''} at ${enTime(t)}`;
+          whenKo = `${otherYear ? d.getFullYear() + '년 ' : ''}${koDate(d)} ${koTime(t)}`;
+          const dt = at(d, t); next = [dt];
+          if (dt <= now) note('err', '이미 지난 날짜예요. 지금 이후로 고르세요.');
+        }
+      } else {
+        const dow = Number(s.dow);
+        if (s.repeat === 'daily') { whenEn = `every day at ${enTime(t)}`; whenKo = `매일 ${koTime(t)}`; next = gen(() => true); }
+        else if (s.repeat === 'weekday') { whenEn = `every weekday at ${enTime(t)}`; whenKo = `평일 ${koTime(t)}`; next = gen(d => d.getDay() >= 1 && d.getDay() <= 5); }
+        else if (s.repeat === 'weekly') { whenEn = `every ${DAYS_EN[dow]} at ${enTime(t)}`; whenKo = `매주 ${DAYS_KO[dow]}요일 ${koTime(t)}`; next = gen(d => d.getDay() === dow); }
+        else if (s.repeat === 'biweekly') {
+          whenEn = `every other ${DAYS_EN[dow]} at ${enTime(t)}`; whenKo = `격주 ${DAYS_KO[dow]}요일 ${koTime(t)}`;
+          const first = gen(d => d.getDay() === dow)[0]; next = [first, addDays(first, 14), addDays(first, 28)];
+          note('info', '격주는 첫 알림 날짜부터 2주 간격이에요.');
+        } else {
+          const n = clampInt(s.mday, 1, 28, 1);
+          whenEn = `on the ${ord(n)} of every month at ${enTime(t)}`; whenKo = `매월 ${n}일 ${koTime(t)}`;
+          for (let k = 0; k < 5 && next.length < 3; k++) { const d = at(new Date(now.getFullYear(), now.getMonth() + k, n), t); if (d > now) next.push(d); }
+        }
+        note('info', '반복 알림은 수정할 수 없어요. 바꾸려면 <code>/remind list</code>에서 지운 뒤 다시 만드세요.');
+      }
+      return {
+        cmds: targets.map(tg => ({ parts: [['cmd', '/remind'], ['who', tg], ['what', `"${what}"`], ['when', whenEn]] })),
+        summary: `<b>${esc(whenKo)}</b>, ${esc(whoKo)} 알림이 가요.`,
+        nextTitle: s.mode === 'once' ? '알림 시각' : '다음 알림 3번',
+        next: next.map(koDateTime), notes: note.list
+      };
+    },
+
+    schedule(s) {
+      const note = notesCollector(); const now = new Date();
+      let msg = s.msg.replace(/\s*\n\s*/g, ' ').trim();
+      if (!msg) { note('err', '보낼 메시지를 입력하세요.'); msg = '메시지'; }
+      let whenEn = '', whenKo = '', next = [];
+      if (s.when === 'in') {
+        const n = clampInt(s.inN, 1, 999, 10); const hrs = s.inUnit === 'hours';
+        whenEn = `in ${n} ${hrs ? (n === 1 ? 'hour' : 'hours') : (n === 1 ? 'minute' : 'minutes')}`;
+        whenKo = `${n}${hrs ? '시간' : '분'} 뒤`; next = [koDateTime(new Date(now.getTime() + n * (hrs ? 3600000 : 60000)))];
+      } else if (s.when === 'at') {
+        const t = s.time || '09:00'; const [h, m] = t.split(':').map(Number); const h12 = h % 12 || 12; const ap = h < 12 ? 'am' : 'pm';
+        whenEn = m ? `at ${h12}:${pad(m)}${ap}` : `at ${h12} ${ap}`; whenKo = `오늘 ${koTime(t)}`;
+        const d = at(now, t); next = [koDateTime(d)];
+        if (d <= now) note('warn', '오늘 이 시각은 이미 지났어요. 앱이 내일로 잡는지 확인하거나 다른 시각을 고르세요.');
+      } else if (s.when === 'tomorrow') { whenEn = 'tomorrow'; whenKo = '내일'; }
+      else { whenEn = 'next week'; whenKo = '다음 주'; }
+      note('warn', 'Slack 기본 명령어가 아니에요. Message Scheduler 앱(유료, 14일 무료 체험)이 워크스페이스에 설치돼 있어야 해요. 앱 설치는 관리자 승인이 필요할 수 있어요.');
+      if (s.when === 'tomorrow' || s.when === 'nextweek') note('info', '앱 소개에는 내일·다음 주의 정확한 발송 시각이 안 나와 있어요. 시각이 중요하면 <code>/schedule</code>만 입력해 고급 설정 창을 쓰세요.');
+      note('info', '받는 사람이 보기에는 내가 직접 보낸 메시지로 보여요.');
+      return {
+        cmds: [{ parts: [['cmd', '/schedule'], ['what', msg], ['when', whenEn]] }],
+        summary: `<b>${esc(whenKo)}</b>, 명령어를 입력한 대화에 내 이름으로 보내져요.`,
+        nextTitle: '보내는 시각', next, notes: note.list
+      };
+    },
+
+    msg(s) {
+      const note = notesCollector();
+      let tg, whoKo;
+      if (s.target === 'channel') { const c = chan(s.channel); tg = '#' + (c || '채널이름'); whoKo = `${tg} 채널에`; if (!c) note('err', '채널 이름을 입력하세요.'); }
+      else { const p = user(s.person); tg = '@' + (p || '이름'); whoKo = `${tg} 님에게 DM으로`; if (!p) note('err', '받을 사람의 Slack 표시 이름을 입력하세요.'); }
+      let text = s.text.replace(/\s*\n\s*/g, ' ').trim();
+      if (!text) { note('err', '보낼 내용을 입력하세요.'); text = '메시지'; }
+      note('info', '보내는 즉시 전송돼요. 나중에 보내려면 <code>/remind</code>나 전송 버튼 옆 ▾의 예약 전송을 쓰세요.');
+      return { cmds: [{ parts: [['cmd', '/msg'], ['who', tg], ['what', text]] }], summary: `${esc(whoKo)} <b>바로</b> 메시지를 보내요.`, next: [], notes: note.list };
+    },
+
+    dnd(s) {
+      const note = notesCollector(); const now = new Date();
+      let arg = '', sum = '', next = [];
+      if (s.mode === 'for') {
+        const n = clampInt(s.n, 1, 999, 30); const hrs = s.unit === 'hours';
+        arg = `${n} ${hrs ? (n === 1 ? 'hour' : 'hours') : 'minutes'}`;
+        sum = `지금부터 <b>${n}${hrs ? '시간' : '분'} 동안</b> 알림을 멈춰요.`;
+        next = [koDateTime(new Date(now.getTime() + n * (hrs ? 3600000 : 60000)))];
+        if (hrs) note('info', 'Slack 도움말 예시는 분 단위(<code>/dnd 15 minutes</code>)예요. 시간 단위가 안 먹히면 분으로 바꿔 보세요.');
+      } else if (s.mode === 'until') {
+        const t = s.time || '18:00'; arg = `until ${enTime(t)}`;
+        sum = `<b>${koTime(t)}까지</b> 알림을 멈춰요.`;
+        const d = at(now, t); next = [koDateTime(d)];
+        if (d <= now) note('warn', '오늘 이 시각은 이미 지났어요. 다른 시각을 고르세요.');
+      } else if (s.mode === 'tonight') { arg = 'until tonight'; sum = '<b>오늘 밤까지</b> 알림을 멈춰요.'; }
+      else if (s.mode === 'morning') { arg = 'until tomorrow morning'; sum = '<b>내일 아침까지</b> 알림을 멈춰요.'; }
+      else { arg = 'off'; sum = '방해 금지를 끄고 <b>알림을 다시 받아요</b>.'; }
+      return { cmds: [{ parts: [['cmd', '/dnd'], ['when', arg]] }], summary: sum, nextTitle: '다시 켜지는 시각', next, notes: note.list };
+    },
+
+    search(s) {
+      const note = notesCollector(); const q = []; const ko = [];
+      const kw = s.kw.trim(); if (kw) { q.push(['what', kw]); ko.push(`‘${kw}’ 포함`); }
+      const phrase = s.phrase.replace(/"/g, '').trim(); if (phrase) { q.push(['what', `"${phrase}"`]); ko.push(`‘${phrase}’ 문구 그대로`); }
+      list(s.exclude, /^-+/).forEach(w => { q.push(['what', '-' + w]); ko.push(`${w} 제외`); });
+      list(s.inc, /^#+/).forEach(c => { q.push(['who', 'in:#' + c.toLowerCase()]); ko.push(`#${c.toLowerCase()}에서`); });
+      list(s.exc, /^#+/).forEach(c => { q.push(['who', '-in:#' + c.toLowerCase()]); ko.push(`#${c.toLowerCase()} 빼고`); });
+      list(s.from, /^@+/).forEach(p => { q.push(['who', 'from:@' + p]); ko.push(p === 'me' ? '내가 보낸' : `@${p} 님이 보낸`); });
+      list(s.with, /^@+/).forEach(p => { q.push(['who', 'with:@' + p]); ko.push(`@${p} 님과의 스레드·DM`); });
+      if (s.date === 'after' || s.date === 'before' || s.date === 'on') {
+        if (s.dateVal) {
+          q.push(['when', `${s.date}:${s.dateVal}`]);
+          const d = parseDate(s.dateVal); ko.push(`${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. ${{ after: '이후', before: '이전', on: '당일' }[s.date]}`);
+          note('info', 'Slack 도움말에 날짜 형식이 따로 안 나와 있어서 YYYY-MM-DD로 넣었어요. 결과가 이상하면 검색 결과 화면의 날짜 필터를 쓰세요.');
+        } else note('warn', '날짜를 고르세요.');
+      } else if (s.date === 'during') {
+        q.push(['when', `during:${s.period}`]);
+        const mi = MONTHS_EN.findIndex(m => m.toLowerCase() === s.period);
+        ko.push(mi >= 0 ? `${mi + 1}월 중` : `${s.period}년 중`);
+      }
+      if (s.thread) { q.push(['opt', 'is:thread']); ko.push('스레드 안'); }
+      if (s.saved) { q.push(['opt', 'is:saved']); ko.push('내가 저장한'); }
+      if (s.pin) { q.push(['opt', 'has:pin']); ko.push('고정된'); }
+      const em = s.emoji.trim().replace(/^:+|:+$/g, ''); if (em) { q.push(['opt', `has::${em}:`]); ko.push(`:${em}: 반응이 달린`); }
+      if (!q.length) { note('err', '키워드나 조건을 하나 이상 입력하세요.'); q.push(['what', '검색어']); }
+      if (list(s.from, /^@+/).includes('me')) note('info', '<code>from:@me</code>가 안 먹히면 내 표시 이름을 넣으세요.');
+      return {
+        cmds: [
+          { label: 'Slack 메시지 입력창에', parts: [['cmd', '/search'], ...q] },
+          { label: '상단 검색창에 바로 붙여넣기', parts: q }
+        ],
+        summary: ko.length ? `${esc(ko.join(' · '))} 메시지를 찾아요.` : '조건을 입력하면 여기에 풀어서 보여 드려요.',
+        next: [], notes: note.list
+      };
+    },
+
+    invite(s) {
+      const note = notesCollector();
+      const ps = list(s.people, /^@+/); const c = chan(s.channel);
+      if (!ps.length) note('err', '초대할 사람의 Slack 표시 이름을 입력하세요.');
+      const parts = [['cmd', '/invite'], ...(ps.length ? ps : ['이름']).map(p => ['who', '@' + p])];
+      if (c) parts.push(['what', '#' + c]);
+      if (ps.length > 1) note('info', '여러 명이 한 번에 안 되면 한 명씩 나눠서 보내세요.');
+      note('info', '비공개 채널은 그 채널 멤버만 초대할 수 있어요.');
+      return { cmds: [{ parts }], summary: `${esc(ps.map(p => '@' + p).join(', ') || '사람')} 님을 <b>${c ? '#' + esc(c) : '지금 채널'}</b>에 초대해요.`, next: [], notes: note.list };
+    },
+
+    remove(s) {
+      const note = notesCollector(); const ps = list(s.person, /^@+/);
+      if (!ps.length) note('err', '내보낼 사람의 Slack 표시 이름을 입력하세요.');
+      note('warn', '명령어를 입력한 채널에서 내보내요. 워크스페이스 설정에 따라 관리자만 쓸 수 있어요.');
+      if (ps.length > 1) note('info', '사람마다 명령어를 따로 만들었어요.');
+      return { cmds: (ps.length ? ps : ['이름']).map(p => ({ parts: [['cmd', '/remove'], ['who', '@' + p]] })), summary: `${esc(ps.map(p => '@' + p).join(', ') || '이 사람')} 님을 <b>지금 채널</b>에서 내보내요.`, next: [], notes: note.list };
+    },
+
+    topic(s) {
+      const note = notesCollector(); let t = s.text.replace(/\s*\n\s*/g, ' ').trim();
+      if (!t) { note('err', '새 주제를 입력하세요.'); t = '새 주제'; }
+      note('info', 'Slack 도움말 표에는 <code>/topic</code>만 나와 있어요. 뒤에 붙인 글이 안 먹히면 <code>/topic</code>만 입력해 열리는 창에서 바꾸세요.');
+      return { cmds: [{ parts: [['cmd', '/topic'], ['what', t]] }], summary: `<b>지금 채널</b>의 주제를 ‘${esc(t)}’(으)로 바꿔요.`, next: [], notes: note.list };
+    },
+
+    rename(s) {
+      const note = notesCollector(); let n = chan(s.name);
+      if (!n) { note('err', '새 채널 이름을 입력하세요.'); n = '새-채널-이름'; }
+      if (n.length > 80) note('err', `채널 이름이 너무 길어요 (${n.length}자). 80자 이하로 줄이세요.`);
+      if (s.name.trim() && n !== s.name.trim().replace(/^#+/, '')) note('info', '대문자와 띄어쓰기를 Slack 채널 이름 형식에 맞게 바꿨어요.');
+      note('warn', '명령어를 입력한 채널의 이름이 바뀌어요. 워크스페이스 설정에 따라 관리자만 쓸 수 있어요.');
+      return { cmds: [{ parts: [['cmd', '/rename'], ['what', n]] }], summary: `<b>지금 채널</b> 이름을 #${esc(n)}(으)로 바꿔요.`, next: [], notes: note.list };
+    },
+
+    mute(s) {
+      const note = notesCollector(); const c = chan(s.channel);
+      const parts = [['cmd', '/mute']]; if (c) parts.push(['what', '#' + c]);
+      note('info', '같은 명령어를 한 번 더 보내면 음소거가 풀려요.');
+      return { cmds: [{ parts }], summary: `<b>${c ? '#' + esc(c) : '지금 대화'}</b>의 알림을 음소거해요.`, next: [], notes: note.list };
+    }
+  };
+
+  // ---------- forms
+  const forms = {}; $$('.cmd-form').forEach(f => { forms[f.dataset.cmd] = f; });
+
+  function setForm(form, obj) {
+    for (const [k, v] of Object.entries(obj || {})) {
+      const el = form.elements[k];
+      if (el == null || v == null) continue;
+      if (el.type === 'checkbox') el.checked = v === true || v === 'on';
+      else el.value = v;
+    }
+  }
+  function readState(form, defaults) {
+    const s = { ...defaults };
+    for (const el of form.elements) if (el.type === 'checkbox') s[el.name] = el.checked;
+    for (const [k, v] of new FormData(form).entries()) if (form.elements[k] && form.elements[k].type !== 'checkbox') s[k] = v;
+    return s;
+  }
+  function cond(expr, s) {
+    return expr.split(';').every(c => { const m = c.match(/^(\w+)(!?=)(.+)$/); if (!m) return true; const hit = m[3].split('|').includes(String(s[m[1]])); return m[2] === '=' ? hit : !hit; });
+  }
+  function sync(form, s) {
+    $$('[data-when]', form).forEach(el => { el.hidden = !cond(el.dataset.when, s); });
+    $$('[data-hide]', form).forEach(el => { el.hidden = cond(el.dataset.hide, s); });
+  }
+
+  let store = { forms: {} };
+  try { const raw = localStorage.getItem(STORE_KEY); if (raw) store = Object.assign(store, JSON.parse(raw)); } catch (e) {}
+  function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {} }
+
+  ORDER.forEach(c => { setForm(forms[c], DEFAULTS[c]); setForm(forms[c], store.forms[c]); });
+
+  // ---------- render
+  let active = 'remind', current = [];
+  function render() {
+    const form = forms[active];
+    const s = readState(form, DEFAULTS[active]);
+    sync(form, s);
+    store.forms[active] = s; persist();
+    const r = BUILD[active](s);
+    const hasErr = r.notes.some(n => n.type === 'err');
+    current = r.cmds.map(c => c.parts.map(p => p[1]).join(' '));
+    $('#cmds').innerHTML = r.cmds.map((c, i) =>
+      `<div class="cmd-item">${c.label ? `<div class="cmd-label">${esc(c.label)}</div>` : ''}<div class="cmd"><code id="cmd-${i}">${c.parts.map(([k, v]) => `<span class="s-${k}">${esc(v)}</span>`).join(' ')}</code><button type="button" class="copy" data-i="${i}"${hasErr ? ' disabled' : ''}>복사</button></div></div>`
+    ).join('');
+    $('#legend').innerHTML = LEGENDS[active].map(([k, l]) => `<span class="${k}">${l}</span>`).join('');
+    $('#summary').innerHTML = r.summary;
+    $('#next-wrap').hidden = !r.next.length;
+    $('#next-h').textContent = r.nextTitle || '';
+    $('#next').innerHTML = r.next.map(x => `<li>${esc(x)}</li>`).join('');
+    const rank = { err: 0, warn: 1, info: 2 };
+    $('#notes').innerHTML = r.notes.sort((a, b) => rank[a.type] - rank[b.type]).map(n => `<li class="${n.type}">${n.html}</li>`).join('');
+  }
+
+  function setActive(cmd) {
+    if (!BUILD[cmd]) cmd = 'remind';
+    active = cmd; store.active = cmd;
+    $$('.panel').forEach(p => { p.hidden = p.dataset.cmd !== cmd; });
+    $$('.tab').forEach(t => { if (t.dataset.cmd === cmd) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
+    $$('.refs [data-for]').forEach(c => { c.hidden = c.dataset.for !== cmd; });
+    $('.refs').hidden = !$$('.refs [data-for]').some(c => c.dataset.for === cmd);
+    const ps = PRESETS[cmd];
+    $('#presets').hidden = !ps;
+    $('#presets').innerHTML = ps ? `<span class="lbl">예시로 채우기</span><div class="quick">${ps.map((p, i) => `<button type="button" class="btn-ghost" data-preset="${i}">${esc(p[0])}</button>`).join('')}</div>` : '';
+    render();
+  }
+
+  // ---------- copy
+  function flash(btn, label, reset) {
+    const orig = reset; btn.classList.add('done');
+    if (btn.classList.contains('q')) btn.querySelector('em').textContent = label; else btn.textContent = label;
+    clearTimeout(btn._t);
+    btn._t = setTimeout(() => { btn.classList.remove('done'); if (btn.classList.contains('q')) btn.querySelector('em').textContent = orig; else btn.textContent = orig; }, 1600);
+  }
+  function copyText(text, btn, selectEl, reset) {
+    const fallback = () => {
+      if (selectEl) { const range = document.createRange(); range.selectNodeContents(selectEl); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
+      flash(btn, '선택됨 · ⌘C', reset);
+    };
+    try { navigator.clipboard.writeText(text).then(() => flash(btn, '복사됨', reset), fallback); } catch (e) { fallback(); }
+  }
+  $('#cmds').addEventListener('click', e => {
+    const btn = e.target.closest('.copy');
+    if (!btn || btn.disabled) return;
+    copyText(current[Number(btn.dataset.i)], btn, $('#cmd-' + btn.dataset.i), '복사');
+  });
+
+  $('#qgrid').innerHTML = QUICK.map(([c, d, f], i) =>
+    `<button type="button" class="q" data-q="${i}"><code><span>${esc(c)}</span><em>복사</em></code><span class="d">${esc(d)}</span>${f ? `<span class="badges"><span class="badge ${FLAG[f][0]}">${FLAG[f][1]}</span></span>` : ''}</button>`
+  ).join('');
+  $('#qgrid').addEventListener('click', e => {
+    const b = e.target.closest('.q'); if (!b) return;
+    copyText(QUICK[Number(b.dataset.q)][0], b, b.querySelector('code span'), '복사');
+  });
+
+  // ---------- presets, quick dates, inputs
+  document.addEventListener('click', e => {
+    const q = e.target.closest('[data-quick]');
+    if (q) {
+      const now = new Date(); let d;
+      if (q.dataset.quick === 'thisfri') d = nextDow(now, 5, true);
+      else if (q.dataset.quick === 'nextmon') d = nextDow(now, 1, false);
+      else d = addDays(nextDow(now, 1, false), 4);
+      forms.remind.elements.date.value = iso(d); render(); return;
+    }
+    const p = e.target.closest('[data-preset]');
+    if (p && PRESETS[active]) { setForm(forms[active], PRESETS[active][Number(p.dataset.preset)][1]); render(); }
+  });
+  Object.values(forms).forEach(f => {
+    f.addEventListener('input', render);
+    f.addEventListener('change', render);
+    f.addEventListener('submit', e => e.preventDefault());
+  });
+
+  window.addEventListener('hashchange', () => setActive(location.hash.slice(1)));
+  setActive(location.hash.slice(1) || store.active || 'remind');
+})();
+</script>
+
+</body></html>
