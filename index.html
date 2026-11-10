@@ -228,11 +228,11 @@ td code { color: var(--accent); white-space: nowrap; }
               <span class="lbl">채널 이름</span>
               <span class="prefixed" data-prefix="#"><input type="text" id="r-channel" list="recent-channels" name="channel" placeholder="kr-dev-lead" spellcheck="false"></span>
             </label>
-            <p class="hint" data-when="target=channel">입력한 채널은 이 브라우저에 저장돼요. 다음에 열 때도, <code>/msg</code>·<code>/search</code>·<code>/invite</code>에도 그대로 채워져요.</p>
             <label class="field" data-when="target=people">
               <span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span>
-              <span class="prefixed" data-prefix="@"><input type="text" id="r-people" name="people" placeholder="minsu, jiyoung" spellcheck="false"></span>
+              <span class="prefixed" data-prefix="@"><input type="text" id="r-people" list="recent-people" name="people" placeholder="minsu, jiyoung" spellcheck="false"></span>
             </label>
+            <p class="hint">고른 받는 곳(나·채널·특정 사람)과 입력한 채널·이름은 이 브라우저에 저장돼요. 다음에 열 때도 그대로고, 채널과 이름은 <code>/msg</code>·<code>/search</code>·<code>/invite</code>·<code>/remove</code>에도 채워져요.</p>
           </section>
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">2</span>무엇을 알릴까요<span class="tag">what</span></h3>
@@ -338,7 +338,7 @@ td code { color: var(--accent); white-space: nowrap; }
               <label class="chip"><input type="radio" name="target" value="person" id="m-t-person"><span>사람 (DM)</span></label>
             </div>
             <label class="field" data-when="target=channel"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="m-channel" list="recent-channels" name="channel" spellcheck="false"></span></label>
-            <label class="field" data-when="target=person"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="m-person" name="person" spellcheck="false"></span></label>
+            <label class="field" data-when="target=person"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="m-person" list="recent-people" name="person" spellcheck="false"></span></label>
           </section>
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">2</span>메시지<span class="tag">what</span></h3>
@@ -394,8 +394,8 @@ td code { color: var(--accent); white-space: nowrap; }
               <label class="field"><span class="lbl">이 채널은 빼고</span><span class="prefixed" data-prefix="#"><input type="text" id="s-exc" list="recent-channels" name="exc" spellcheck="false"></span></label>
             </div>
             <div class="row">
-              <label class="field"><span class="lbl">이 사람이 보낸</span><span class="prefixed" data-prefix="@"><input type="text" id="s-from" name="from" spellcheck="false"></span></label>
-              <label class="field"><span class="lbl">이 사람과의 스레드·DM</span><span class="prefixed" data-prefix="@"><input type="text" id="s-with" name="with" spellcheck="false"></span></label>
+              <label class="field"><span class="lbl">이 사람이 보낸</span><span class="prefixed" data-prefix="@"><input type="text" id="s-from" list="recent-people" name="from" spellcheck="false"></span></label>
+              <label class="field"><span class="lbl">이 사람과의 스레드·DM</span><span class="prefixed" data-prefix="@"><input type="text" id="s-with" list="recent-people" name="with" spellcheck="false"></span></label>
             </div>
             <p class="hint">여러 개는 쉼표로 구분하세요.</p>
           </section>
@@ -435,7 +435,7 @@ td code { color: var(--accent); white-space: nowrap; }
         <form class="steps cmd-form" data-cmd="invite" autocomplete="off">
           <section class="step" style="--seg: var(--who)">
             <h3><span class="num">1</span>초대할 사람<span class="tag">who</span></h3>
-            <label class="field"><span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span><span class="prefixed" data-prefix="@"><input type="text" id="i-people" name="people" spellcheck="false"></span></label>
+            <label class="field"><span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span><span class="prefixed" data-prefix="@"><input type="text" id="i-people" list="recent-people" name="people" spellcheck="false"></span></label>
           </section>
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">2</span>초대할 채널 (선택)<span class="tag">channel</span></h3>
@@ -454,7 +454,7 @@ td code { color: var(--accent); white-space: nowrap; }
         <form class="steps cmd-form" data-cmd="remove" autocomplete="off">
           <section class="step" style="--seg: var(--who)">
             <h3><span class="num">1</span>내보낼 사람<span class="tag">who</span></h3>
-            <label class="field"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="rm-person" name="person" spellcheck="false"></span></label>
+            <label class="field"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="rm-person" list="recent-people" name="person" spellcheck="false"></span></label>
           </section>
         </form>
       </section>
@@ -611,6 +611,7 @@ td code { color: var(--accent); white-space: nowrap; }
 </div>
 
 <datalist id="recent-channels"></datalist>
+<datalist id="recent-people"></datalist>
 <script>
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
@@ -619,16 +620,24 @@ td code { color: var(--accent); white-space: nowrap; }
   const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
   const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const STORE_KEY = 'slack-cmd-builder:v2';
-  const CH_KEY = 'slack-cmd-builder:channel';
-  const CH_FALLBACK = 'kr-dev-lead';
-  // fields that share one remembered channel name
-  const LINKED = [['remind', 'channel'], ['msg', 'channel'], ['search', 'inc'], ['invite', 'channel']];
-  let chState = { last: '', recent: [] };
-  try { const raw = localStorage.getItem(CH_KEY); if (raw) chState = Object.assign(chState, JSON.parse(raw)); } catch (e) {}
-  if (!Array.isArray(chState.recent)) chState.recent = [];
-  if (!chState.last) { try { const old = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); chState.last = ((old.forms || {}).remind || {}).channel || ''; } catch (e) {} }
-  const saveCh = () => { try { localStorage.setItem(CH_KEY, JSON.stringify(chState)); } catch (e) {} };
-  const CH = () => chState.last || CH_FALLBACK;
+  // values remembered across visits and shared between commands.
+  // fields: [command, field name, takes only one value]
+  const SHARED = {
+    channel: { key: 'slack-cmd-builder:channel', datalist: 'recent-channels', strip: /^#+/, multi: false,
+      fields: [['remind', 'channel', true], ['msg', 'channel', true], ['search', 'inc', true], ['invite', 'channel', true]] },
+    people: { key: 'slack-cmd-builder:people', datalist: 'recent-people', strip: /^@+/, multi: true,
+      fields: [['remind', 'people', false], ['invite', 'people', false], ['remove', 'person', false], ['msg', 'person', true]] }
+  };
+  function loadShared(g, oldField) {
+    let st = { last: '', recent: [] };
+    try { const raw = localStorage.getItem(g.key); if (raw) st = Object.assign(st, JSON.parse(raw)); } catch (e) {}
+    if (!Array.isArray(st.recent)) st.recent = [];
+    if (!st.last) { try { const old = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); st.last = ((old.forms || {}).remind || {})[oldField] || ''; } catch (e) {} }
+    g.state = st;
+  }
+  loadShared(SHARED.channel, 'channel'); loadShared(SHARED.people, 'people');
+  const saveShared = g => { try { localStorage.setItem(g.key, JSON.stringify(g.state)); } catch (e) {} };
+  const CH = () => SHARED.channel.state.last || 'kr-dev-lead';
   const ORDER = ['remind', 'schedule', 'msg', 'dnd', 'search', 'invite', 'remove', 'topic', 'rename', 'mute'];
 
   const pad = n => String(n).padStart(2, '0');
@@ -973,35 +982,50 @@ td code { color: var(--accent); white-space: nowrap; }
 
   ORDER.forEach(c => { setForm(forms[c], DEFAULTS[c]); setForm(forms[c], store.forms[c]); });
 
-  // ---------- remembered channel
-  function renderRecent() {
-    $('#recent-channels').innerHTML = chState.recent.map(c => `<option value="${esc(c)}"></option>`).join('');
+  // ---------- remembered channel and people
+  const normShared = (g, v) => list(v, g.strip).map(g === SHARED.channel ? chan : user).filter(Boolean);
+  function renderRecent(g) {
+    $('#' + g.datalist).innerHTML = g.state.recent.map(c => `<option value="${esc(c)}"></option>`).join('');
   }
-  function shareChannel(c, fromEl) {
-    chState.last = c; saveCh();
-    LINKED.forEach(([cmd, name]) => {
+  function share(g, vals, fromEl) {
+    g.state.last = vals.join(', '); saveShared(g);
+    g.fields.forEach(([cmd, name, single]) => {
       const el = forms[cmd].elements[name];
       if (el === fromEl) return;
-      el.value = c; (store.forms[cmd] = store.forms[cmd] || {})[name] = c;
+      const v = single ? vals[0] : vals.join(', ');
+      el.value = v; (store.forms[cmd] = store.forms[cmd] || {})[name] = v;
     });
     persist();
   }
-  if (chState.last) shareChannel(chState.last, null);
-  LINKED.forEach(([cmd, name]) => {
-    const el = forms[cmd].elements[name];
-    el.addEventListener('input', () => {
-      const parts = list(el.value, /^#+/);
-      if (parts.length === 1) shareChannel(chan(parts[0]), el);
+  Object.values(SHARED).forEach(g => {
+    const saved = normShared(g, g.state.last);
+    if (saved.length) share(g, saved, null);
+    g.fields.forEach(([cmd, name]) => {
+      const el = forms[cmd].elements[name];
+      el.addEventListener('input', () => {
+        const vals = normShared(g, el.value);
+        if (vals.length === 1 || (vals.length > 1 && g.multi)) share(g, vals, el);
+      });
     });
+    // any field using this suggestion list adds to it once the value is committed
+    $$(`input[list="${g.datalist}"]`).forEach(el => el.addEventListener('change', () => {
+      const added = normShared(g, el.value);
+      if (!added.length) return;
+      g.state.recent = [...added, ...g.state.recent.filter(c => !added.includes(c))].slice(0, 8);
+      saveShared(g); renderRecent(g);
+    }));
+    renderRecent(g);
   });
-  // every channel-ish field adds to the suggestion list once committed
-  $$('input[list="recent-channels"]').forEach(el => el.addEventListener('change', () => {
-    const added = list(el.value, /^#+/).map(chan).filter(Boolean);
-    if (!added.length) return;
-    chState.recent = [...added, ...chState.recent.filter(c => !added.includes(c))].slice(0, 8);
-    saveCh(); renderRecent();
-  }));
-  renderRecent();
+  // keep /remind and /msg on the same kind of recipient; /msg has no "me", so "me" is never overwritten
+  const TARGET_MAP = { remind: { channel: 'channel', people: 'person' }, msg: { channel: 'channel', person: 'people' } };
+  function mirrorTarget(from) {
+    const to = from === 'remind' ? 'msg' : 'remind';
+    const v = TARGET_MAP[from][forms[from].elements.target.value];
+    if (!v || forms[to].elements.target.value === 'me') return;
+    forms[to].elements.target.value = v; (store.forms[to] = store.forms[to] || {}).target = v; persist();
+  }
+  ['remind', 'msg'].forEach(c => forms[c].addEventListener('change', e => { if (e.target.name === 'target') mirrorTarget(c); }));
+  mirrorTarget('remind');
 
   // ---------- render
   let active = 'remind', current = [];
