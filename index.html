@@ -226,8 +226,9 @@ td code { color: var(--accent); white-space: nowrap; }
             </div>
             <label class="field" data-when="target=channel">
               <span class="lbl">채널 이름</span>
-              <span class="prefixed" data-prefix="#"><input type="text" id="r-channel" name="channel" placeholder="kr-dev-lead" spellcheck="false"></span>
+              <span class="prefixed" data-prefix="#"><input type="text" id="r-channel" list="recent-channels" name="channel" placeholder="kr-dev-lead" spellcheck="false"></span>
             </label>
+            <p class="hint" data-when="target=channel">입력한 채널은 이 브라우저에 저장돼요. 다음에 열 때도, <code>/msg</code>·<code>/search</code>·<code>/invite</code>에도 그대로 채워져요.</p>
             <label class="field" data-when="target=people">
               <span class="lbl">Slack 표시 이름 · 여러 명은 쉼표로 구분</span>
               <span class="prefixed" data-prefix="@"><input type="text" id="r-people" name="people" placeholder="minsu, jiyoung" spellcheck="false"></span>
@@ -336,7 +337,7 @@ td code { color: var(--accent); white-space: nowrap; }
               <label class="chip"><input type="radio" name="target" value="channel" id="m-t-channel"><span>채널</span></label>
               <label class="chip"><input type="radio" name="target" value="person" id="m-t-person"><span>사람 (DM)</span></label>
             </div>
-            <label class="field" data-when="target=channel"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="m-channel" name="channel" spellcheck="false"></span></label>
+            <label class="field" data-when="target=channel"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="m-channel" list="recent-channels" name="channel" spellcheck="false"></span></label>
             <label class="field" data-when="target=person"><span class="lbl">Slack 표시 이름</span><span class="prefixed" data-prefix="@"><input type="text" id="m-person" name="person" spellcheck="false"></span></label>
           </section>
           <section class="step" style="--seg: var(--what)">
@@ -389,8 +390,8 @@ td code { color: var(--accent); white-space: nowrap; }
           <section class="step" style="--seg: var(--who)">
             <h3><span class="num">2</span>어디서, 누가<span class="tag">사람 · 채널</span></h3>
             <div class="row">
-              <label class="field"><span class="lbl">이 채널에서</span><span class="prefixed" data-prefix="#"><input type="text" id="s-inc" name="inc" spellcheck="false"></span></label>
-              <label class="field"><span class="lbl">이 채널은 빼고</span><span class="prefixed" data-prefix="#"><input type="text" id="s-exc" name="exc" spellcheck="false"></span></label>
+              <label class="field"><span class="lbl">이 채널에서</span><span class="prefixed" data-prefix="#"><input type="text" id="s-inc" list="recent-channels" name="inc" spellcheck="false"></span></label>
+              <label class="field"><span class="lbl">이 채널은 빼고</span><span class="prefixed" data-prefix="#"><input type="text" id="s-exc" list="recent-channels" name="exc" spellcheck="false"></span></label>
             </div>
             <div class="row">
               <label class="field"><span class="lbl">이 사람이 보낸</span><span class="prefixed" data-prefix="@"><input type="text" id="s-from" name="from" spellcheck="false"></span></label>
@@ -438,7 +439,7 @@ td code { color: var(--accent); white-space: nowrap; }
           </section>
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">2</span>초대할 채널 (선택)<span class="tag">channel</span></h3>
-            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="i-channel" name="channel" spellcheck="false"></span></label>
+            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="i-channel" list="recent-channels" name="channel" spellcheck="false"></span></label>
           </section>
         </form>
       </section>
@@ -499,7 +500,7 @@ td code { color: var(--accent); white-space: nowrap; }
         <form class="steps cmd-form" data-cmd="mute" autocomplete="off">
           <section class="step" style="--seg: var(--what)">
             <h3><span class="num">1</span>음소거할 채널 (선택)<span class="tag">channel</span></h3>
-            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="mu-channel" name="channel" spellcheck="false"></span></label>
+            <label class="field"><span class="lbl">채널 이름</span><span class="prefixed" data-prefix="#"><input type="text" id="mu-channel" list="recent-channels" name="channel" spellcheck="false"></span></label>
           </section>
         </form>
       </section>
@@ -609,6 +610,7 @@ td code { color: var(--accent); white-space: nowrap; }
   <p class="foot">Slack 공식 도구가 아닙니다. 명령어 목록과 문법은 Slack 도움말(단축키·방해 금지·검색 문서)과 Message Scheduler 앱 소개 페이지를 바탕으로 만들었어요. 워크스페이스 관리자가 일부 명령어를 막아 두었을 수 있고, 시간은 Slack 프로필의 시간대 기준이에요.</p>
 </div>
 
+<datalist id="recent-channels"></datalist>
 <script>
 (function () {
   const $ = (s, r = document) => r.querySelector(s);
@@ -617,6 +619,16 @@ td code { color: var(--accent); white-space: nowrap; }
   const DAYS_KO = ['일', '월', '화', '수', '목', '금', '토'];
   const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const STORE_KEY = 'slack-cmd-builder:v2';
+  const CH_KEY = 'slack-cmd-builder:channel';
+  const CH_FALLBACK = 'kr-dev-lead';
+  // fields that share one remembered channel name
+  const LINKED = [['remind', 'channel'], ['msg', 'channel'], ['search', 'inc'], ['invite', 'channel']];
+  let chState = { last: '', recent: [] };
+  try { const raw = localStorage.getItem(CH_KEY); if (raw) chState = Object.assign(chState, JSON.parse(raw)); } catch (e) {}
+  if (!Array.isArray(chState.recent)) chState.recent = [];
+  if (!chState.last) { try { const old = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); chState.last = ((old.forms || {}).remind || {}).channel || ''; } catch (e) {} }
+  const saveCh = () => { try { localStorage.setItem(CH_KEY, JSON.stringify(chState)); } catch (e) {} };
+  const CH = () => chState.last || CH_FALLBACK;
   const ORDER = ['remind', 'schedule', 'msg', 'dnd', 'search', 'invite', 'remove', 'topic', 'rename', 'mute'];
 
   const pad = n => String(n).padStart(2, '0');
@@ -645,12 +657,12 @@ td code { color: var(--accent); white-space: nowrap; }
   })();
 
   const DEFAULTS = {
-    remind: { target: 'channel', channel: 'kr-dev-lead', people: '', msg: '이번 주 주간보고서 작성해 주세요', link: '', mode: 'repeat', once: 'date', inN: '30', inUnit: 'minutes', date: iso(nextDow(new Date(), 1, false)), repeat: 'weekly', dow: '5', mday: '1', time: '09:00' },
+    remind: { target: 'channel', channel: CH(), people: '', msg: '이번 주 주간보고서 작성해 주세요', link: '', mode: 'repeat', once: 'date', inN: '30', inUnit: 'minutes', date: iso(nextDow(new Date(), 1, false)), repeat: 'weekly', dow: '5', mday: '1', time: '09:00' },
     schedule: { msg: '주간 회의 안건 미리 공유해 주세요', when: 'at', inN: '10', inUnit: 'minutes', time: '09:00' },
-    msg: { target: 'channel', channel: 'kr-dev-lead', person: '', text: '배포 끝났어요. 확인 부탁드려요' },
+    msg: { target: 'channel', channel: CH(), person: '', text: '배포 끝났어요. 확인 부탁드려요' },
     dnd: { mode: 'for', n: '30', unit: 'minutes', time: '18:00' },
-    search: { kw: '주간보고서', phrase: '', exclude: '', inc: 'kr-dev-lead', exc: '', from: '', with: '', date: 'after', dateVal: iso(addDays(new Date(), -30)), period: MONTHS_EN[new Date().getMonth()].toLowerCase(), thread: false, saved: false, pin: false, emoji: '' },
-    invite: { people: 'minsu', channel: 'kr-dev-lead' },
+    search: { kw: '주간보고서', phrase: '', exclude: '', inc: CH(), exc: '', from: '', with: '', date: 'after', dateVal: iso(addDays(new Date(), -30)), period: MONTHS_EN[new Date().getMonth()].toLowerCase(), thread: false, saved: false, pin: false, emoji: '' },
+    invite: { people: 'minsu', channel: CH() },
     remove: { person: 'minsu' },
     topic: { text: '11월 2주차 배포 일정 공유' },
     rename: { name: 'kr-dev-lead-2026' },
@@ -659,8 +671,8 @@ td code { color: var(--accent); white-space: nowrap; }
 
   const PRESETS = {
     remind: [
-      ['주간보고서 · 매주 금 9시', { target: 'channel', channel: 'kr-dev-lead', msg: '이번 주 주간보고서 작성해 주세요', link: '', mode: 'repeat', repeat: 'weekly', dow: '5', time: '09:00' }],
-      ['스탠드업 · 평일 9:50', { target: 'channel', channel: 'kr-dev-lead', msg: '10분 뒤 스탠드업이에요', link: '', mode: 'repeat', repeat: 'weekday', time: '09:50' }],
+      ['주간보고서 · 매주 금 9시', { target: 'channel', channel: '$CH', msg: '이번 주 주간보고서 작성해 주세요', link: '', mode: 'repeat', repeat: 'weekly', dow: '5', time: '09:00' }],
+      ['스탠드업 · 평일 9:50', { target: 'channel', channel: '$CH', msg: '10분 뒤 스탠드업이에요', link: '', mode: 'repeat', repeat: 'weekday', time: '09:50' }],
       ['경비 정산 · 매월 1일', { target: 'me', msg: '지난달 경비 정산 제출하기', link: '', mode: 'repeat', repeat: 'monthly', mday: '1', time: '10:00' }],
       ['나에게 · 30분 뒤', { target: 'me', msg: '회의록 정리해서 공유하기', link: '', mode: 'once', once: 'in', inN: '30', inUnit: 'minutes' }]
     ],
@@ -671,8 +683,8 @@ td code { color: var(--accent); white-space: nowrap; }
     ],
     search: [
       ['내가 쓴 글', { kw: '', phrase: '', exclude: '', inc: '', exc: '', from: 'me', with: '', date: 'none', thread: false, saved: false, pin: false, emoji: '' }],
-      ['채널 고정 메시지', { kw: '', phrase: '', exclude: '', inc: 'kr-dev-lead', exc: '', from: '', with: '', date: 'none', thread: false, saved: false, pin: true, emoji: '' }],
-      ['이번 달 주간보고서', { kw: '주간보고서', phrase: '', exclude: '', inc: 'kr-dev-lead', exc: '', from: '', with: '', date: 'during', period: MONTHS_EN[new Date().getMonth()].toLowerCase(), thread: false, saved: false, pin: false, emoji: '' }]
+      ['채널 고정 메시지', { kw: '', phrase: '', exclude: '', inc: '$CH', exc: '', from: '', with: '', date: 'none', thread: false, saved: false, pin: true, emoji: '' }],
+      ['이번 달 주간보고서', { kw: '주간보고서', phrase: '', exclude: '', inc: '$CH', exc: '', from: '', with: '', date: 'during', period: MONTHS_EN[new Date().getMonth()].toLowerCase(), thread: false, saved: false, pin: false, emoji: '' }]
     ]
   };
 
@@ -961,6 +973,36 @@ td code { color: var(--accent); white-space: nowrap; }
 
   ORDER.forEach(c => { setForm(forms[c], DEFAULTS[c]); setForm(forms[c], store.forms[c]); });
 
+  // ---------- remembered channel
+  function renderRecent() {
+    $('#recent-channels').innerHTML = chState.recent.map(c => `<option value="${esc(c)}"></option>`).join('');
+  }
+  function shareChannel(c, fromEl) {
+    chState.last = c; saveCh();
+    LINKED.forEach(([cmd, name]) => {
+      const el = forms[cmd].elements[name];
+      if (el === fromEl) return;
+      el.value = c; (store.forms[cmd] = store.forms[cmd] || {})[name] = c;
+    });
+    persist();
+  }
+  if (chState.last) shareChannel(chState.last, null);
+  LINKED.forEach(([cmd, name]) => {
+    const el = forms[cmd].elements[name];
+    el.addEventListener('input', () => {
+      const parts = list(el.value, /^#+/);
+      if (parts.length === 1) shareChannel(chan(parts[0]), el);
+    });
+  });
+  // every channel-ish field adds to the suggestion list once committed
+  $$('input[list="recent-channels"]').forEach(el => el.addEventListener('change', () => {
+    const added = list(el.value, /^#+/).map(chan).filter(Boolean);
+    if (!added.length) return;
+    chState.recent = [...added, ...chState.recent.filter(c => !added.includes(c))].slice(0, 8);
+    saveCh(); renderRecent();
+  }));
+  renderRecent();
+
   // ---------- render
   let active = 'remind', current = [];
   function render() {
@@ -1035,7 +1077,7 @@ td code { color: var(--accent); white-space: nowrap; }
       forms.remind.elements.date.value = iso(d); render(); return;
     }
     const p = e.target.closest('[data-preset]');
-    if (p && PRESETS[active]) { setForm(forms[active], PRESETS[active][Number(p.dataset.preset)][1]); render(); }
+    if (p && PRESETS[active]) { const v = PRESETS[active][Number(p.dataset.preset)][1]; setForm(forms[active], Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x === '$CH' ? CH() : x]))); render(); }
   });
   Object.values(forms).forEach(f => {
     f.addEventListener('input', render);
